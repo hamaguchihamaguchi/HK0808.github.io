@@ -27,8 +27,14 @@
       box-shadow: 0 6px 20px rgba(0,0,0,0.06);
       margin-bottom: 16px;
     }
-    h1 { font-size: 1.8rem; margin-bottom: 20px; }
-    h2 { font-size: 1.3rem; margin: 0 0 16px; }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 20px;
+    }
+    h2 {
+      font-size: 1.3rem;
+      margin: 0 0 16px;
+    }
     .summary {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -94,6 +100,11 @@
       border-radius: 10px;
       font-size: 1rem;
     }
+    a {
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 700;
+    }
     @media (max-width: 900px) {
       .summary {
         grid-template-columns: 1fr 1fr;
@@ -129,9 +140,10 @@
           <div class="summary-value" id="currentMonthLabel">-</div>
         </div>
       </div>
-      <div class="card">
-  <a href="./viewer.html">← 閲覧ページへ戻る</a>
-　　　　</div>
+
+      <div style="margin-top:16px;">
+        <a href="./viewer.html">← 閲覧ページへ戻る</a>
+      </div>
     </div>
 
     <div class="card">
@@ -209,6 +221,28 @@
       return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
     }
 
+    function startOfToday() {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    }
+
+    function startOfWeek() {
+      const now = new Date();
+      const day = now.getDay();
+      const diffToMonday = (day === 0 ? 6 : day - 1);
+      now.setDate(now.getDate() - diffToMonday);
+      now.setHours(0, 0, 0, 0);
+      return now.getTime();
+    }
+
+    function startOfMonth() {
+      const d = new Date();
+      d.setDate(1);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    }
+
     function formatDateTime(ms) {
       const date = new Date(ms);
       const y = date.getFullYear();
@@ -259,6 +293,8 @@
 
     function renderTodayRanking() {
       const today = todayKey();
+      const todayStart = startOfToday();
+      const now = Date.now();
       const map = {};
 
       Object.keys(dailyTotalsCache).forEach(function(encodedName) {
@@ -271,19 +307,24 @@
         const user = usersCache[encodedName];
         const name = user.name;
         if (!map[name]) map[name] = 0;
-        map[name] += Date.now() - (user.checkInTime || Date.now());
+
+        const checkIn = user.checkInTime || now;
+        const effectiveStart = Math.max(checkIn, todayStart);
+        map[name] += Math.max(0, now - effectiveStart);
       });
 
       const arr = Object.keys(map)
         .map(name => ({ name, totalMs: map[name] }))
         .filter(x => x.totalMs > 0)
-        .sort((a,b) => b.totalMs - a.totalMs);
+        .sort((a, b) => b.totalMs - a.totalMs);
 
       renderRankList("todayRanking", arr);
     }
 
     function renderWeeklyRanking() {
       const keys = weekKeys();
+      const weekStart = startOfWeek();
+      const now = Date.now();
       const map = {};
 
       Object.keys(dailyTotalsCache).forEach(function(encodedName) {
@@ -297,17 +338,17 @@
       Object.keys(usersCache).forEach(function(encodedName) {
         const user = usersCache[encodedName];
         const name = user.name;
-        const today = todayKey();
-        if (keys.includes(today)) {
-          if (!map[name]) map[name] = 0;
-          map[name] += Date.now() - (user.checkInTime || Date.now());
-        }
+        if (!map[name]) map[name] = 0;
+
+        const checkIn = user.checkInTime || now;
+        const effectiveStart = Math.max(checkIn, weekStart);
+        map[name] += Math.max(0, now - effectiveStart);
       });
 
       const arr = Object.keys(map)
         .map(name => ({ name, totalMs: map[name] }))
         .filter(x => x.totalMs > 0)
-        .sort((a,b) => b.totalMs - a.totalMs);
+        .sort((a, b) => b.totalMs - a.totalMs);
 
       document.getElementById("weeklyUserCount").textContent = arr.length + "人";
       renderRankList("weeklyRanking", arr);
@@ -315,6 +356,8 @@
 
     function buildMonthOptions() {
       const select = document.getElementById("monthSelect");
+      const prevValue = select.value;
+
       const monthSet = new Set();
       monthSet.add(currentMonthKey());
 
@@ -325,6 +368,7 @@
 
       const arr = Array.from(monthSet).sort().reverse();
       select.innerHTML = "";
+
       arr.forEach(function(m) {
         const op = document.createElement("option");
         op.value = m;
@@ -332,7 +376,12 @@
         select.appendChild(op);
       });
 
-      if (!select.value) select.value = currentMonthKey();
+      if (arr.includes(prevValue)) {
+        select.value = prevValue;
+      } else {
+        select.value = currentMonthKey();
+      }
+
       document.getElementById("currentMonthLabel").textContent = select.value;
     }
 
@@ -340,7 +389,10 @@
       const month = document.getElementById("monthSelect").value || currentMonthKey();
       document.getElementById("currentMonthLabel").textContent = month;
 
+      const monthStart = startOfMonth();
+      const now = Date.now();
       const map = {};
+
       Object.keys(monthlyTotalsCache).forEach(function(encodedName) {
         const name = decodeURIComponent(encodedName);
         const months = monthlyTotalsCache[encodedName] || {};
@@ -350,17 +402,21 @@
       Object.keys(usersCache).forEach(function(encodedName) {
         const user = usersCache[encodedName];
         const userMonth = currentMonthKey();
+
         if (userMonth === month) {
           const name = user.name;
           if (!map[name]) map[name] = 0;
-          map[name] += Date.now() - (user.checkInTime || Date.now());
+
+          const checkIn = user.checkInTime || now;
+          const effectiveStart = Math.max(checkIn, monthStart);
+          map[name] += Math.max(0, now - effectiveStart);
         }
       });
 
       const arr = Object.keys(map)
         .map(name => ({ name, totalMs: map[name] }))
         .filter(x => x.totalMs > 0)
-        .sort((a,b) => b.totalMs - a.totalMs);
+        .sort((a, b) => b.totalMs - a.totalMs);
 
       renderRankList("monthlyTotals", arr);
     }
@@ -370,14 +426,15 @@
       const list = document.getElementById("historyList");
       list.innerHTML = "";
 
-      let arr = historyCache.slice().sort((a,b) => (b.checkOutTime || 0) - (a.checkOutTime || 0));
+      const allArr = historyCache.slice().sort((a, b) => (b.checkOutTime || 0) - (a.checkOutTime || 0));
 
+      document.getElementById("todayHistoryCount").textContent =
+        allArr.filter(x => x.dayKey === todayKey()).length + "件";
+
+      let arr = allArr;
       if (filter) {
         arr = arr.filter(x => (x.name || "").toLowerCase().includes(filter));
       }
-
-      document.getElementById("todayHistoryCount").textContent =
-        arr.filter(x => x.dayKey === todayKey()).length + "件";
 
       if (arr.length === 0) {
         list.innerHTML = '<div class="history-item">履歴がありません。</div>';
