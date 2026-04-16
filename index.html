@@ -41,6 +41,13 @@ var firebaseConfig = {
   projectId: "system-2e861",
 };
 
+window.onload = function() {
+  var saved = localStorage.getItem("name");
+  if (saved) {
+    document.getElementById("name").value = saved;
+  }
+}
+
 firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
 
@@ -48,12 +55,15 @@ function checkIn() {
   var name = document.getElementById("name").value;
   if (!name) return alert("名前を入力してください");
 
+  localStorage.setItem("name", name);
+
   db.ref("users/" + name).set({
     name: name,
     time: Date.now(),
     status: "in"
   });
 }
+
 
 function checkOut() {
   var name = document.getElementById("name").value;
