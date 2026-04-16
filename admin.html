@@ -165,7 +165,7 @@
     </div>
 
     <div class="card">
-      <h2>打刻履歴の確認</h2>
+      <h2>今日の打刻履歴</h2>
       <div class="filter-row">
         <input type="text" id="historyNameFilter" placeholder="名前で絞り込み">
       </div>
@@ -187,7 +187,8 @@
     let usersCache = {};
     let dailyTotalsCache = {};
     let monthlyTotalsCache = {};
-    let historyCache = [];
+    let weeklyTotalsCache = {};
+    let todayHistoryCache = [];
 
     function todayKey() {
       const now = new Date();
@@ -196,29 +197,20 @@
         String(now.getDate()).padStart(2, "0");
     }
 
-    function weekKeys() {
-      const now = new Date();
-      const day = now.getDay();
-      const diffToMonday = (day === 0 ? 6 : day - 1);
-      const monday = new Date(now);
-      monday.setDate(now.getDate() - diffToMonday);
-
-      const keys = [];
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(monday);
-        d.setDate(monday.getDate() + i);
-        keys.push(
-          d.getFullYear() + "-" +
-          String(d.getMonth() + 1).padStart(2, "0") + "-" +
-          String(d.getDate()).padStart(2, "0")
-        );
-      }
-      return keys;
-    }
-
     function currentMonthKey() {
       const now = new Date();
       return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    }
+
+    function currentWeekKey() {
+      const d = new Date();
+      const day = d.getDay();
+      const diffToMonday = (day === 0 ? 6 : day - 1);
+      d.setDate(d.getDate() - diffToMonday);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return y + "-W-" + m + "-" + dd;
     }
 
     function startOfToday() {
@@ -227,18 +219,18 @@
       return d.getTime();
     }
 
-    function startOfWeek() {
-      const now = new Date();
-      const day = now.getDay();
-      const diffToMonday = (day === 0 ? 6 : day - 1);
-      now.setDate(now.getDate() - diffToMonday);
-      now.setHours(0, 0, 0, 0);
-      return now.getTime();
-    }
-
     function startOfMonth() {
       const d = new Date();
       d.setDate(1);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    }
+
+    function startOfCurrentWeek() {
+      const d = new Date();
+      const day = d.getDay();
+      const diffToMonday = (day === 0 ? 6 : day - 1);
+      d.setDate(d.getDate() - diffToMonday);
       d.setHours(0, 0, 0, 0);
       return d.getTime();
     }
@@ -322,17 +314,15 @@
     }
 
     function renderWeeklyRanking() {
-      const keys = weekKeys();
-      const weekStart = startOfWeek();
+      const weekKey = currentWeekKey();
+      const weekStart = startOfCurrentWeek();
       const now = Date.now();
       const map = {};
 
-      Object.keys(dailyTotalsCache).forEach(function(encodedName) {
+      const weekNode = weeklyTotalsCache[weekKey] || {};
+      Object.keys(weekNode).forEach(function(encodedName) {
         const name = decodeURIComponent(encodedName);
-        const totals = dailyTotalsCache[encodedName] || {};
-        let sum = 0;
-        keys.forEach(k => sum += (totals[k] || 0));
-        map[name] = sum;
+        map[name] = weekNode[encodedName] || 0;
       });
 
       Object.keys(usersCache).forEach(function(encodedName) {
@@ -426,10 +416,8 @@
       const list = document.getElementById("historyList");
       list.innerHTML = "";
 
-      const allArr = historyCache.slice().sort((a, b) => (b.checkOutTime || 0) - (a.checkOutTime || 0));
-
-      document.getElementById("todayHistoryCount").textContent =
-        allArr.filter(x => x.dayKey === todayKey()).length + "件";
+      const allArr = todayHistoryCache.slice().sort((a, b) => (b.checkOutTime || 0) - (a.checkOutTime || 0));
+      document.getElementById("todayHistoryCount").textContent = allArr.length + "件";
 
       let arr = allArr;
       if (filter) {
@@ -454,13 +442,32 @@
       });
     }
 
-    function refreshAll() {
+    function renderStatic() {
       document.getElementById("currentCount").textContent = Object.keys(usersCache).length + "人";
-      renderTodayRanking();
-      renderWeeklyRanking();
       buildMonthOptions();
       renderMonthlyTotals();
       renderHistory();
+    }
+
+    function renderDynamic() {
+      renderTodayRanking();
+      renderWeeklyRanking();
+      renderMonthlyTotals();
+    }
+
+    function loadTodayHistoryByDate() {
+      const today = todayKey();
+      db.ref("historyByDate/" + today).on("value", function(snapshot) {
+        const temp = [];
+        snapshot.forEach(function(userNode) {
+          const sessions = userNode.val() || {};
+          Object.keys(sessions).forEach(function(ts) {
+            temp.push(sessions[ts]);
+          });
+        });
+        todayHistoryCache = temp;
+        renderHistory();
+      });
     }
 
     window.onload = function() {
@@ -469,33 +476,33 @@
         snapshot.forEach(function(child) {
           usersCache[child.key] = child.val();
         });
-        refreshAll();
+        renderStatic();
+        renderDynamic();
       });
 
       db.ref("dailyTotals").on("value", function(snapshot) {
         dailyTotalsCache = snapshot.val() || {};
-        refreshAll();
+        renderDynamic();
       });
 
       db.ref("monthlyTotals").on("value", function(snapshot) {
         monthlyTotalsCache = snapshot.val() || {};
-        refreshAll();
+        renderStatic();
+        renderDynamic();
       });
 
-      db.ref("history").on("value", function(snapshot) {
-        historyCache = [];
-        snapshot.forEach(function(userNode) {
-          const sessions = userNode.val() || {};
-          Object.keys(sessions).forEach(function(ts) {
-            historyCache.push(sessions[ts]);
-          });
-        });
-        refreshAll();
+      db.ref("weeklyTotals").on("value", function(snapshot) {
+        weeklyTotalsCache = snapshot.val() || {};
+        renderDynamic();
       });
+
+      loadTodayHistoryByDate();
 
       document.getElementById("monthSelect").addEventListener("change", renderMonthlyTotals);
       document.getElementById("historyNameFilter").addEventListener("input", renderHistory);
-      setInterval(refreshAll, 1000);
+
+      // 毎秒ではなく、在室中の経過時間表示に必要な集計だけ1分ごとに更新
+      setInterval(renderDynamic, 60000);
     };
   </script>
 </body>
