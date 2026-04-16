@@ -36,162 +36,169 @@
       font-weight: 800;
       margin-bottom: 12px;
     }
-    .sub {
-      color: #6b7280;
-      line-height: 1.7;
-    }
-    .success { color: #166534; font-weight: 800; }
-    .danger { color: #b91c1c; font-weight: 800; }
-    .neutral { color: #1d4ed8; font-weight: 800; }
-    .warn { color: #92400e; font-weight: 800; }
-    a {
-      color: #2563eb;
-      text-decoration: none;
-      font-weight: 700;
-    }
+    .success { color: #166534; }
+    .danger { color: #b91c1c; }
+    .neutral { color: #1d4ed8; }
+    .warn { color: #92400e; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>研究室勤怠システム 打刻ページ</h1>
+<div class="container">
+  <h1>打刻</h1>
 
-    <div class="card">
-      <div class="big" id="message">処理中...</div>
-      <div class="sub" id="detail">しばらくお待ちください。</div>
-    </div>
-
-    <div class="card">
-      <p><a href="./viewer.html">閲覧ページへ</a></p>
-      <a href="./admin.html">記録ページへ</a>
-    </div>
+  <div class="card">
+    <div id="message" class="big">処理中...</div>
+    <div id="detail"></div>
   </div>
+</div>
 
-  <script>
-    var firebaseConfig = {
-      apiKey: "AIzaSyDykqZFJcIurcovYkQvbWqr5vchYGOHgsU",
-      authDomain: "system-2e861.firebaseapp.com",
-      databaseURL: "https://system-2e861-default-rtdb.firebaseio.com",
-      projectId: "system-2e861"
-    };
+<script>
+var firebaseConfig = {
+  apiKey: "AIzaSyDykqZFJcIurcovYkQvbWqr5vchYGOHgsU",
+  authDomain: "system-2e861.firebaseapp.com",
+  databaseURL: "https://system-2e861-default-rtdb.firebaseio.com",
+  projectId: "system-2e861"
+};
 
-    firebase.initializeApp(firebaseConfig);
-    var db = firebase.database();
+firebase.initializeApp(firebaseConfig);
+var db = firebase.database();
 
-    const STORAGE_KEY = "lab_selected_user";
-    const SECRET_KEY = "lab2026_attendance_x9k3";
-    const LOCK_SECONDS = 10;
+const STORAGE_KEY = "lab_selected_user";
+const LOCK_SECONDS = 10;
 
-    function getQueryParam(name) {
-      const url = new URL(window.location.href);
-      return url.searchParams.get(name);
-    }
+// =========================
+// 日付処理
+// =========================
+function getDayKey(ms) {
+  const d = new Date(ms);
+  return d.getFullYear() + "-" +
+    String(d.getMonth()+1).padStart(2,"0") + "-" +
+    String(d.getDate()).padStart(2,"0");
+}
 
-    function todayKey() {
-      const now = new Date();
-      return now.getFullYear() + "-" +
-        String(now.getMonth() + 1).padStart(2, "0") + "-" +
-        String(now.getDate()).padStart(2, "0");
-    }
+function getMonthKey(ms) {
+  const d = new Date(ms);
+  return d.getFullYear() + "-" +
+    String(d.getMonth()+1).padStart(2,"0");
+}
 
-    function monthKey(dateMs) {
-      const d = new Date(dateMs);
-      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-    }
+function nextDayStart(ms) {
+  const d = new Date(ms);
+  d.setHours(24,0,0,0);
+  return d.getTime();
+}
 
-    function setMessage(text, detail, className) {
-      const msg = document.getElementById("message");
-      const det = document.getElementById("detail");
-      msg.textContent = text;
-      det.textContent = detail;
-      msg.className = "big " + className;
-    }
+// =========================
+// 日跨ぎ分割
+// =========================
+async function addDurationSplit(encodedName, start, end) {
+  let cur = start;
 
-    async function autoToggleAttendance() {
-      const name = localStorage.getItem(STORAGE_KEY) || "";
-      if (!name) {
-        setMessage("名前が未設定です", "この端末ではまだ名前が保存されていません。名前設定ページで名前を保存してください。", "danger");
-        return;
-      }
+  while (cur < end) {
+    const next = nextDayStart(cur);
+    const segmentEnd = Math.min(end, next);
+    const duration = segmentEnd - cur;
 
-      const encodedName = encodeURIComponent(name);
-      const metaRef = db.ref("meta/" + encodedName);
-      const metaSnap = await metaRef.once("value");
-      const meta = metaSnap.val() || {};
-      const now = Date.now();
+    const dayKey = getDayKey(cur);
+    const monthKey = getMonthKey(cur);
 
-      if (meta.lastActionTime && (now - meta.lastActionTime) < LOCK_SECONDS * 1000) {
-        const remain = Math.ceil((LOCK_SECONDS * 1000 - (now - meta.lastActionTime)) / 1000);
-        setMessage("連続打刻できません", "直前打刻から" + LOCK_SECONDS + "秒以内です。あと " + remain + " 秒待ってください。", "warn");
-        return;
-      }
+    const dailyRef = db.ref("dailyTotals/" + encodedName + "/" + dayKey);
+    const monthlyRef = db.ref("monthlyTotals/" + encodedName + "/" + monthKey);
 
-      const userRef = db.ref("users/" + encodedName);
-      const snapshot = await userRef.once("value");
+    await dailyRef.transaction(v => (v || 0) + duration);
+    await monthlyRef.transaction(v => (v || 0) + duration);
 
-      if (!snapshot.exists()) {
-        await userRef.set({
-          name: name,
-          checkInTime: now,
-          status: "in"
-        });
+    cur = segmentEnd;
+  }
+}
 
-        await metaRef.update({
-          lastAction: "checkin",
-          lastActionTime: now
-        });
+// =========================
+// UI
+// =========================
+function setMessage(msg, detail, cls) {
+  const m = document.getElementById("message");
+  const d = document.getElementById("detail");
+  m.textContent = msg;
+  d.textContent = detail;
+  m.className = "big " + cls;
+}
 
-        setMessage("入室しました", name + " さんを入室登録しました。", "success");
-        return;
-      }
+// =========================
+// メイン処理
+// =========================
+async function run() {
+  const name = localStorage.getItem(STORAGE_KEY);
 
-      const data = snapshot.val();
-      const checkInTime = data.checkInTime || now;
-      const durationMs = now - checkInTime;
-      const day = todayKey();
-      const month = monthKey(now);
+  if (!name) {
+    setMessage("名前未設定", "先に名前設定してください", "danger");
+    return;
+  }
 
-      const historyRef = db.ref("history/" + encodedName + "/" + now);
-      const dailyTotalRef = db.ref("dailyTotals/" + encodedName + "/" + day);
-      const monthlyTotalRef = db.ref("monthlyTotals/" + encodedName + "/" + month);
+  const encoded = encodeURIComponent(name);
+  const now = Date.now();
 
-      await historyRef.set({
-        name: name,
-        checkInTime: checkInTime,
-        checkOutTime: now,
-        durationMs: durationMs,
-        dayKey: day,
-        monthKey: month
-      });
+  // 連打防止
+  const metaRef = db.ref("meta/" + encoded);
+  const metaSnap = await metaRef.once("value");
+  const meta = metaSnap.val() || {};
 
-      await dailyTotalRef.transaction(function(current) {
-        return (current || 0) + durationMs;
-      });
+  if (meta.lastActionTime && now - meta.lastActionTime < LOCK_SECONDS*1000) {
+    setMessage("連続打刻不可", "少し待ってください", "warn");
+    return;
+  }
 
-      await monthlyTotalRef.transaction(function(current) {
-        return (current || 0) + durationMs;
-      });
+  const userRef = db.ref("users/" + encoded);
+  const snap = await userRef.once("value");
 
-      await metaRef.update({
-        lastAction: "checkout",
-        lastActionTime: now
-      });
+  // =========================
+  // 入室
+  // =========================
+  if (!snap.exists()) {
 
-      await userRef.remove();
-      setMessage("退出しました", name + " さんを退出登録しました。", "neutral");
-    }
+    await userRef.set({
+      name: name,
+      checkInTime: now
+    });
 
-    window.onload = function() {
-      const key = getQueryParam("key");
+    await metaRef.update({
+      lastActionTime: now
+    });
 
-      if (key !== SECRET_KEY) {
-        setMessage("このページからは打刻できません", "正しいキー付きURLで開いてください。", "danger");
-        return;
-      }
+    setMessage("入室しました", name, "success");
+    return;
+  }
 
-      autoToggleAttendance().catch(function(error) {
-        setMessage("エラーが発生しました", error.message, "danger");
-      });
-    };
-  </script>
+  // =========================
+  // 退出
+  // =========================
+  const data = snap.val();
+  const checkIn = data.checkInTime;
+  const duration = now - checkIn;
+
+  // 履歴保存
+  await db.ref("history/" + encoded + "/" + now).set({
+    name: name,
+    checkInTime: checkIn,
+    checkOutTime: now,
+    durationMs: duration,
+    dayKey: getDayKey(now),
+    monthKey: getMonthKey(now)
+  });
+
+  // ★ 日跨ぎ分割
+  await addDurationSplit(encoded, checkIn, now);
+
+  // ユーザ削除
+  await userRef.remove();
+
+  await metaRef.update({
+    lastActionTime: now
+  });
+
+  setMessage("退出しました", name, "neutral");
+}
+
+window.onload = run;
+</script>
 </body>
 </html>
