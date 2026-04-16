@@ -3,78 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>研究室勤怠システム</title>
-
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
+  <title>研究室勤怠システム - 初期設定</title>
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
     body {
-      margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      margin: 0;
       background: #f5f7fb;
       color: #1f2937;
     }
-
     .container {
-      max-width: 760px;
+      max-width: 720px;
       margin: 0 auto;
-      padding: 20px 16px 40px;
+      padding: 24px 16px 40px;
     }
-
-    .title {
-      font-size: 2rem;
-      font-weight: 800;
-      margin: 16px 0 24px;
-      line-height: 1.2;
-    }
-
     .card {
       background: #fff;
       border-radius: 16px;
-      padding: 18px;
+      padding: 20px;
       box-shadow: 0 6px 20px rgba(0,0,0,0.06);
       margin-bottom: 16px;
     }
-
-    .section-title {
-      font-size: 1.2rem;
-      font-weight: 800;
-      margin: 0 0 14px;
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 20px;
     }
-
-    .label {
-      display: block;
-      font-size: 0.95rem;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-
-    input[type="text"] {
+    input {
       width: 100%;
       padding: 14px;
       font-size: 1rem;
       border: 1px solid #d1d5db;
       border-radius: 12px;
-      outline: none;
+      box-sizing: border-box;
       margin-bottom: 12px;
     }
-
-    input[type="text"]:focus {
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
-    }
-
-    .button-row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
     button {
       border: none;
       border-radius: 12px;
@@ -82,543 +43,71 @@
       font-size: 1rem;
       font-weight: 700;
       cursor: pointer;
-    }
-
-    .btn-save {
       background: #2563eb;
-      color: #fff;
+      color: white;
+      width: 100%;
     }
-
-    .btn-checkin {
-      background: #16a34a;
-      color: #fff;
+    .sub {
+      color: #6b7280;
+      line-height: 1.7;
     }
-
-    .btn-checkout {
-      background: #dc2626;
-      color: #fff;
-    }
-
-    .btn-clear {
-      background: #6b7280;
-      color: #fff;
-    }
-
-    .status-box {
-      padding: 14px;
-      border-radius: 12px;
-      background: #eff6ff;
-      font-weight: 700;
-      line-height: 1.6;
-    }
-
-    .notice {
+    .links a {
+      display: block;
       margin-top: 10px;
-      font-size: 0.92rem;
-      color: #6b7280;
-      line-height: 1.6;
-    }
-
-    .summary {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    .summary-box {
-      background: #eff6ff;
-      border-radius: 14px;
-      padding: 14px;
-    }
-
-    .summary-title {
-      font-size: 0.85rem;
-      color: #4b5563;
-      margin-bottom: 6px;
+      color: #2563eb;
+      text-decoration: none;
       font-weight: 700;
     }
-
-    .summary-value {
-      font-size: 1.35rem;
-      font-weight: 800;
+    .status {
+      font-weight: 700;
       color: #111827;
-    }
-
-    .sub-text {
-      color: #6b7280;
-      font-size: 0.95rem;
-      margin-top: 8px;
-    }
-
-    .member-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .member-card {
-      background: #fff;
-      border-radius: 14px;
-      padding: 14px 16px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.05);
-      border-left: 6px solid #16a34a;
-    }
-
-    .member-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .member-name {
-      font-size: 1.1rem;
-      font-weight: 800;
-    }
-
-    .badge {
-      background: #dcfce7;
-      color: #166534;
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 0.8rem;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-
-    .member-meta {
-      color: #4b5563;
-      font-size: 0.95rem;
-      line-height: 1.6;
-    }
-
-    .empty {
-      background: #fff;
-      border-radius: 14px;
-      padding: 18px;
-      color: #6b7280;
-      text-align: center;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.05);
-    }
-
-    @media (max-width: 560px) {
-      .title {
-        font-size: 1.8rem;
-      }
-
-      .summary {
-        grid-template-columns: 1fr;
-      }
-
-      .button-row {
-        flex-direction: column;
-      }
-
-      button {
-        width: 100%;
-      }
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1 class="title">研究室勤怠システム</h1>
+    <h1>研究室勤怠システム 初期設定</h1>
 
     <div class="card">
-      <h2 class="section-title">最初の設定</h2>
-      <label class="label" for="nameInput">この端末で使う名前</label>
+      <p class="sub">
+        この端末で使う名前を保存します。最初に1回だけ設定してください。
+      </p>
       <input id="nameInput" type="text" placeholder="名前を入力">
-
-      <div class="button-row">
-        <button class="btn-save" onclick="saveName()">名前を保存</button>
-        <button class="btn-clear" onclick="clearSavedName()">保存を消す</button>
-      </div>
-
-      <div class="notice">
-        この名前は、この端末のこのブラウザだけに保存されます。<br>
-        同じURLでも、別のスマホでは別の名前を保存できます。
-      </div>
+      <button onclick="saveName()">この端末に名前を保存</button>
+      <div class="status" id="currentStatus">現在の保存名: 未設定</div>
     </div>
 
-    <div class="card">
-      <h2 class="section-title">この端末の状態</h2>
-      <div class="status-box" id="currentUserBox">
-        現在のユーザー: 未設定
-      </div>
-      <div class="notice" id="modeInfo">
-        URLモード: 通常表示
-      </div>
+    <div class="card links">
+      <a href="./touch.html">打刻ページを開く</a>
+      <a href="./viewer.html">閲覧ページを開く</a>
     </div>
-
-    <div class="card">
-      <h2 class="section-title">手動操作</h2>
-      <div class="button-row">
-        <button class="btn-checkin" onclick="checkIn()">入室</button>
-        <button class="btn-checkout" onclick="checkOut()">退出</button>
-      </div>
-      <div class="notice">
-        NFCタグがまだない間は、手動でこのボタンで確認できます。<br>
-        あとで `?mode=checkin` をURLにつければ、自動入室にできます。
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="summary">
-        <div class="summary-box">
-          <div class="summary-title">現在の人数</div>
-          <div class="summary-value" id="currentCount">0人</div>
-        </div>
-        <div class="summary-box">
-          <div class="summary-title">今日の自分の累計滞在時間</div>
-          <div class="summary-value" id="myTodayTotal">0分</div>
-        </div>
-      </div>
-      <div class="sub-text" id="lastUpdated">最終更新: -</div>
-    </div>
-
-    <h2 class="section-title">現在いる人</h2>
-    <div id="memberList" class="member-list"></div>
   </div>
 
   <script>
-    // =========================
-    // Firebase設定
-    // 自分の値に変更してください
-    // =========================
-    var firebaseConfig = {
-      apiKey: "AIzaSyDykqZFJcIurcovYkQvbWqr5vchYGOHgsU",
-      authDomain: "system-2e861.firebaseapp.com",
-      databaseURL: "https://system-2e861-default-rtdb.firebaseio.com",
-      projectId: "system-2e861"
-    };
+    const STORAGE_KEY = "lab_selected_user";
 
-    firebase.initializeApp(firebaseConfig);
-    var db = firebase.database();
-
-    // =========================
-    // ローカル保存用キー
-    // =========================
-    var STORAGE_KEY = "lab_selected_user";
-
-    // 現在在室者キャッシュ
-    var currentUsersCache = {};
-
-    function getSavedName() {
-      return localStorage.getItem(STORAGE_KEY) || "";
-    }
-
-    function setSavedName(name) {
-      localStorage.setItem(STORAGE_KEY, name);
-    }
-
-    function removeSavedName() {
-      localStorage.removeItem(STORAGE_KEY);
+    function updateStatus() {
+      const saved = localStorage.getItem(STORAGE_KEY) || "";
+      document.getElementById("currentStatus").textContent =
+        "現在の保存名: " + (saved || "未設定");
+      if (saved) {
+        document.getElementById("nameInput").value = saved;
+      }
     }
 
     function saveName() {
-      var name = document.getElementById("nameInput").value.trim();
+      const name = document.getElementById("nameInput").value.trim();
       if (!name) {
         alert("名前を入力してください");
         return;
       }
-      setSavedName(name);
-      updateCurrentUserUI();
-      loadTodayMyTotal();
+      localStorage.setItem(STORAGE_KEY, name);
+      updateStatus();
       alert("この端末に「" + name + "」を保存しました");
     }
 
-    function clearSavedName() {
-      removeSavedName();
-      document.getElementById("nameInput").value = "";
-      updateCurrentUserUI();
-      loadTodayMyTotal();
-      alert("保存済みの名前を削除しました");
-    }
-
-    function updateCurrentUserUI() {
-      var savedName = getSavedName();
-      var box = document.getElementById("currentUserBox");
-
-      if (savedName) {
-        box.textContent = "現在のユーザー: " + savedName;
-        document.getElementById("nameInput").value = savedName;
-      } else {
-        box.textContent = "現在のユーザー: 未設定";
-      }
-    }
-
-    function getQueryParam(name) {
-      var url = new URL(window.location.href);
-      return url.searchParams.get(name);
-    }
-
-    function updateModeInfo() {
-      var mode = getQueryParam("mode");
-      var modeInfo = document.getElementById("modeInfo");
-
-      if (mode === "checkin") {
-        modeInfo.textContent = "URLモード: 自動入室";
-      } else if (mode === "checkout") {
-        modeInfo.textContent = "URLモード: 自動退出";
-      } else {
-        modeInfo.textContent = "URLモード: 通常表示";
-      }
-    }
-
-    function todayKey() {
-      var now = new Date();
-      var y = now.getFullYear();
-      var m = String(now.getMonth() + 1).padStart(2, "0");
-      var d = String(now.getDate()).padStart(2, "0");
-      return y + "-" + m + "-" + d;
-    }
-
-    function formatDateTime(ms) {
-      var date = new Date(ms);
-      var y = date.getFullYear();
-      var m = String(date.getMonth() + 1).padStart(2, "0");
-      var d = String(date.getDate()).padStart(2, "0");
-      var hh = String(date.getHours()).padStart(2, "0");
-      var mm = String(date.getMinutes()).padStart(2, "0");
-      return y + "/" + m + "/" + d + " " + hh + ":" + mm;
-    }
-
-    function formatDuration(ms) {
-      var totalSec = Math.max(0, Math.floor(ms / 1000));
-      var hours = Math.floor(totalSec / 3600);
-      var minutes = Math.floor((totalSec % 3600) / 60);
-
-      if (hours > 0) {
-        return hours + "時間" + minutes + "分";
-      }
-      return minutes + "分";
-    }
-
-    function setLastUpdated() {
-      document.getElementById("lastUpdated").textContent =
-        "最終更新: " + formatDateTime(Date.now());
-    }
-
-    function escapeHtml(text) {
-      return String(text)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-    }
-
-    // =========================
-    // 入室
-    // =========================
-    function checkIn() {
-      var name = getSavedName();
-
-      if (!name) {
-        alert("先にこの端末の名前を保存してください");
-        return Promise.resolve();
-      }
-
-      var encodedName = encodeURIComponent(name);
-      var userRef = db.ref("users/" + encodedName);
-
-      return userRef.once("value").then(function(snapshot) {
-        if (snapshot.exists()) {
-          return Promise.resolve("already_in");
-        }
-
-        var now = Date.now();
-        return userRef.set({
-          name: name,
-          checkInTime: now,
-          status: "in"
-        }).then(function() {
-          loadTodayMyTotal();
-          return "checked_in";
-        });
-      }).catch(function(error) {
-        alert("入室に失敗しました: " + error.message);
-      });
-    }
-
-    // =========================
-    // 退出
-    // =========================
-    function checkOut() {
-      var name = getSavedName();
-
-      if (!name) {
-        alert("先にこの端末の名前を保存してください");
-        return Promise.resolve();
-      }
-
-      var encodedName = encodeURIComponent(name);
-      var userRef = db.ref("users/" + encodedName);
-
-      return userRef.once("value").then(function(snapshot) {
-        if (!snapshot.exists()) {
-          return Promise.resolve("not_in");
-        }
-
-        var data = snapshot.val();
-        var now = Date.now();
-        var checkInTime = data.checkInTime || now;
-        var durationMs = now - checkInTime;
-        var day = todayKey();
-
-        var historyRef = db.ref("history/" + encodedName + "/" + now);
-        var totalRef = db.ref("dailyTotals/" + encodedName + "/" + day);
-
-        return historyRef.set({
-          name: name,
-          checkInTime: checkInTime,
-          checkOutTime: now,
-          durationMs: durationMs
-        }).then(function() {
-          return totalRef.transaction(function(current) {
-            return (current || 0) + durationMs;
-          });
-        }).then(function() {
-          return userRef.remove();
-        }).then(function() {
-          loadTodayMyTotal();
-          return "checked_out";
-        });
-      }).catch(function(error) {
-        alert("退出に失敗しました: " + error.message);
-      });
-    }
-
-    // =========================
-    // 今日の累計滞在時間
-    // =========================
-    function loadTodayMyTotal() {
-      var name = getSavedName();
-
-      if (!name) {
-        document.getElementById("myTodayTotal").textContent = "0分";
-        return;
-      }
-
-      var encodedName = encodeURIComponent(name);
-      var day = todayKey();
-      var totalRef = db.ref("dailyTotals/" + encodedName + "/" + day);
-
-      totalRef.once("value").then(function(snapshot) {
-        var totalMs = snapshot.val() || 0;
-
-        return db.ref("users/" + encodedName).once("value").then(function(userSnap) {
-          if (userSnap.exists()) {
-            var user = userSnap.val();
-            if (user.checkInTime) {
-              totalMs += (Date.now() - user.checkInTime);
-            }
-          }
-          document.getElementById("myTodayTotal").textContent = formatDuration(totalMs);
-        });
-      }).catch(function() {
-        document.getElementById("myTodayTotal").textContent = "取得失敗";
-      });
-    }
-
-    // =========================
-    // 在室者購読
-    // =========================
-    function subscribeUsers() {
-      db.ref("users").on("value", function(snapshot) {
-        currentUsersCache = {};
-        snapshot.forEach(function(child) {
-          currentUsersCache[child.key] = child.val();
-        });
-        renderUsersFromCache();
-        setLastUpdated();
-        loadTodayMyTotal();
-      });
-    }
-
-    function renderUsersFromCache() {
-      var memberList = document.getElementById("memberList");
-      var countEl = document.getElementById("currentCount");
-
-      memberList.innerHTML = "";
-
-      var users = Object.values(currentUsersCache);
-
-      users.sort(function(a, b) {
-        return (a.checkInTime || 0) - (b.checkInTime || 0);
-      });
-
-      countEl.textContent = users.length + "人";
-
-      if (users.length === 0) {
-        memberList.innerHTML = '<div class="empty">現在、研究室にいる人はいません。</div>';
-        return;
-      }
-
-      users.forEach(function(user) {
-        var card = document.createElement("div");
-        card.className = "member-card";
-
-        var elapsedMs = Date.now() - (user.checkInTime || Date.now());
-
-        card.innerHTML = `
-          <div class="member-top">
-            <div class="member-name">${escapeHtml(user.name || "名前なし")}</div>
-            <div class="badge">在室中</div>
-          </div>
-          <div class="member-meta">
-            入室時刻: ${formatDateTime(user.checkInTime || Date.now())}<br>
-            滞在時間: ${formatDuration(elapsedMs)}
-          </div>
-        `;
-
-        memberList.appendChild(card);
-      });
-    }
-
-    // =========================
-    // 起動時処理
-    // =========================
-    window.onload = function() {
-      updateCurrentUserUI();
-      updateModeInfo();
-      subscribeUsers();
-      loadTodayMyTotal();
-      setInterval(renderUsersFromCache, 1000);
-
-      var mode = getQueryParam("mode");
-      var savedName = getSavedName();
-
-      if (!savedName) {
-        return;
-      }
-
-      // NFCの代わりにURLでテストできる
-      if (mode === "checkin") {
-        setTimeout(function() {
-          checkIn().then(function(result) {
-            if (result === "checked_in") {
-              alert(savedName + " さんを自動入室しました");
-            } else if (result === "already_in") {
-              alert(savedName + " さんはすでに入室中です");
-            }
-          });
-        }, 300);
-      }
-
-      if (mode === "checkout") {
-        setTimeout(function() {
-          checkOut().then(function(result) {
-            if (result === "checked_out") {
-              alert(savedName + " さんを自動退出しました");
-            } else if (result === "not_in") {
-              alert(savedName + " さんは現在入室していません");
-            }
-          });
-        }, 300);
-      }
-    };
+    window.onload = updateStatus;
   </script>
 </body>
 </html>
