@@ -46,6 +46,7 @@
       background: #2563eb;
       color: white;
       width: 100%;
+      margin-bottom: 10px;
     }
     .sub {
       color: #6b7280;
@@ -75,19 +76,17 @@
     <h1>研究室勤怠システム 初期設定</h1>
 
     <div class="card">
-      <p class="sub">
-        この端末で使う名前を保存します。最初に1回だけ設定してください。
-      </p>
+      <p class="sub">この端末で使う名前を保存します。最初に1回だけ設定してください。</p>
       <input id="nameInput" type="text" placeholder="名前を入力">
       <button onclick="saveName()">この端末に名前を保存</button>
+      <button onclick="clearName()" style="background:#6b7280;">保存した名前を削除</button>
       <div class="status" id="currentStatus">現在の保存名: 未設定</div>
-      <div class="warn">
-        このページからは打刻できません。打刻はNFCタグ経由のみです。
-      </div>
+      <div class="warn">このページからは打刻できません。打刻はNFCタグ経由のみです。</div>
     </div>
 
     <div class="card links">
       <a href="./viewer.html">在室状況を見る</a>
+      <a href="./admin.html">管理者ページ</a>
     </div>
   </div>
 
@@ -98,20 +97,22 @@
       const saved = localStorage.getItem(STORAGE_KEY) || "";
       document.getElementById("currentStatus").textContent =
         "現在の保存名: " + (saved || "未設定");
-      if (saved) {
-        document.getElementById("nameInput").value = saved;
-      }
+      if (saved) document.getElementById("nameInput").value = saved;
     }
 
     function saveName() {
       const name = document.getElementById("nameInput").value.trim();
-      if (!name) {
-        alert("名前を入力してください");
-        return;
-      }
+      if (!name) return alert("名前を入力してください");
       localStorage.setItem(STORAGE_KEY, name);
       updateStatus();
       alert("この端末に「" + name + "」を保存しました");
+    }
+
+    function clearName() {
+      localStorage.removeItem(STORAGE_KEY);
+      document.getElementById("nameInput").value = "";
+      updateStatus();
+      alert("保存した名前を削除しました");
     }
 
     window.onload = updateStatus;
