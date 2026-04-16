@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>研究室勤怠システム - 打刻</title>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      margin: 0;
+      background: #f5f7fb;
+      color: #1f2937;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 20px;
+    }
+    .big {
+      font-size: 1.3rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+    .sub {
+      color: #6b7280;
+      line-height: 1.7;
+    }
+    .success {
+      color: #166534;
+      font-weight: 800;
+    }
+    .danger {
+      color: #b91c1c;
+      font-weight: 800;
+    }
+    .neutral {
+      color: #1d4ed8;
+      font-weight: 800;
+    }
+    a {
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>研究室勤怠システム 打刻ページ</h1>
+
+    <div class="card">
+      <div class="big" id="message">処理中...</div>
+      <div class="sub" id="detail">しばらくお待ちください。</div>
+    </div>
+
+    <div class="card">
+      <div class="sub">
+        名前が未設定の場合は、先に初期設定ページを開いてください。
+      </div>
+      <p><a href="./index.html">初期設定ページへ</a></p>
+      <p><a href="./viewer.html">閲覧ページへ</a></p>
+    </div>
+  </div>
+
+  <script>
+    var firebaseConfig = {
+      apiKey: "AIzaSyDykqZFJcIurcovYkQvbWqr5vchYGOHgsU",
+      authDomain: "system-2e861.firebaseapp.com",
+      databaseURL: "https://system-2e861-default-rtdb.firebaseio.com",
+      projectId: "system-2e861"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.database();
+
+    const STORAGE_KEY = "lab_selected_user";
+
+    function todayKey() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const d = String(now.getDate()).padStart(2, "0");
+      return y + "-" + m + "-" + d;
+    }
+
+    function setMessage(text, detail, className) {
+      const msg = document.getElementById("message");
+      const det = document.getElementById("detail");
+      msg.textContent = text;
+      det.textContent = detail;
+      msg.className = "big " + className;
+    }
+
+    async function autoToggleAttendance() {
+      const name = localStorage.getItem(STORAGE_KEY) || "";
+      if (!name) {
+        setMessage("名前が未設定です", "この端末ではまだ名前が保存されていません。初期設定ページで名前を保存してください。", "danger");
+        return;
+      }
+
+      const encodedName = encodeURIComponent(name);
+      const userRef = db.ref("users/" + encodedName);
+      const snapshot = await userRef.once("value");
+
+      if (!snapshot.exists()) {
+        const now = Date.now();
+        await userRef.set({
+          name: name,
+          checkInTime: now,
+          status: "in"
+        });
+        setMessage("入室しました", name + " さんを入室登録しました。", "success");
+        return;
+      }
+
+      const data = snapshot.val();
+      const now = Date.now();
+      const checkInTime = data.checkInTime || now;
+      const durationMs = now - checkInTime;
+      const day = todayKey();
+
+      const historyRef = db.ref("history/" + encodedName + "/" + now);
+      const totalRef = db.ref("dailyTotals/" + encodedName + "/" + day);
+
+      await historyRef.set({
+        name: name,
+        checkInTime: checkInTime,
+        checkOutTime: now,
+        durationMs: durationMs
+      });
+
+      await totalRef.transaction(function(current) {
+        return (current || 0) + durationMs;
+      });
+
+      await userRef.remove();
+      setMessage("退出しました", name + " さんを退出登録しました。", "neutral");
+    }
+
+    window.onload = function() {
+      autoToggleAttendance().catch(function(error) {
+        setMessage("エラーが発生しました", error.message, "danger");
+      });
+    };
+  </script>
+</body>
+</html>
