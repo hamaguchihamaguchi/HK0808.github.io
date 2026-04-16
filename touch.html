@@ -61,7 +61,7 @@
     </div>
 
     <div class="card">
-      <div class="sub">このページはNFC専用です。正規のURLキーがない場合は打刻できません。</div>
+      <div class="sub">このページは打刻専用です。URLを直接開いてテストできます。</div>
       <p><a href="./index.html">名前設定ページへ</a></p>
       <p><a href="./viewer.html">閲覧ページへ</a></p>
     </div>
@@ -153,7 +153,6 @@
 
       const historyRef = db.ref("history/" + encodedName + "/" + now);
       const dailyTotalRef = db.ref("dailyTotals/" + encodedName + "/" + day);
-      const weeklyDayRef = db.ref("dailyTotals/" + encodedName + "/" + day);
       const monthlyTotalRef = db.ref("monthlyTotals/" + encodedName + "/" + month);
 
       await historyRef.set({
@@ -186,7 +185,7 @@
       const key = getQueryParam("key");
 
       if (key !== SECRET_KEY) {
-        setMessage("このページからは打刻できません", "正しいNFCタグ経由のURLではありません。", "danger");
+        setMessage("このページからは打刻できません", "正しいキー付きURLで開いてください。", "danger");
         return;
       }
 
