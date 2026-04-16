@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>研究室在室システム</title>
+  <title>研究室勤怠システム</title>
 
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -42,7 +42,7 @@
     }
 
     .section-title {
-      font-size: 1.3rem;
+      font-size: 1.2rem;
       font-weight: 800;
       margin: 0 0 14px;
     }
@@ -84,7 +84,7 @@
       cursor: pointer;
     }
 
-    .btn-add {
+    .btn-save {
       background: #2563eb;
       color: #fff;
     }
@@ -99,38 +99,24 @@
       color: #fff;
     }
 
-    .btn-delete {
+    .btn-clear {
       background: #6b7280;
       color: #fff;
     }
 
-    .selected-box {
-      margin-top: 12px;
+    .status-box {
       padding: 14px;
       border-radius: 12px;
       background: #eff6ff;
       font-weight: 700;
+      line-height: 1.6;
     }
 
-    .member-picker {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    .member-chip {
-      padding: 10px 14px;
-      border-radius: 999px;
-      background: #e5e7eb;
-      color: #111827;
-      font-weight: 700;
-      border: 2px solid transparent;
-    }
-
-    .member-chip.selected {
-      background: #dbeafe;
-      border-color: #2563eb;
-      color: #1d4ed8;
+    .notice {
+      margin-top: 10px;
+      font-size: 0.92rem;
+      color: #6b7280;
+      line-height: 1.6;
     }
 
     .summary {
@@ -153,7 +139,7 @@
     }
 
     .summary-value {
-      font-size: 1.4rem;
+      font-size: 1.35rem;
       font-weight: 800;
       color: #111827;
     }
@@ -187,7 +173,7 @@
     }
 
     .member-name {
-      font-size: 1.15rem;
+      font-size: 1.1rem;
       font-weight: 800;
     }
 
@@ -216,13 +202,6 @@
       box-shadow: 0 4px 14px rgba(0,0,0,0.05);
     }
 
-    .notice {
-      margin-top: 10px;
-      font-size: 0.92rem;
-      color: #6b7280;
-      line-height: 1.6;
-    }
-
     @media (max-width: 560px) {
       .title {
         font-size: 1.8rem;
@@ -244,37 +223,43 @@
 </head>
 <body>
   <div class="container">
-    <h1 class="title">研究室在室システム</h1>
+    <h1 class="title">研究室勤怠システム</h1>
 
     <div class="card">
-      <h2 class="section-title">登録済みメンバー</h2>
-      <div id="savedMembers" class="member-picker"></div>
+      <h2 class="section-title">最初の設定</h2>
+      <label class="label" for="nameInput">この端末で使う名前</label>
+      <input id="nameInput" type="text" placeholder="名前を入力">
 
-      <div class="selected-box" id="selectedUserBox">
-        選択中: なし
+      <div class="button-row">
+        <button class="btn-save" onclick="saveName()">名前を保存</button>
+        <button class="btn-clear" onclick="clearSavedName()">保存を消す</button>
       </div>
 
       <div class="notice">
-        一度追加した名前はこの端末に保存されます。次回からは名前をタップするだけで使えます。
+        この名前は、この端末のこのブラウザだけに保存されます。<br>
+        同じURLでも、別のスマホでは別の名前を保存できます。
       </div>
     </div>
 
     <div class="card">
-      <h2 class="section-title">新しい名前を追加</h2>
-      <label class="label" for="newName">名前</label>
-      <input id="newName" type="text" placeholder="新しい名前を入力">
-
-      <div class="button-row">
-        <button class="btn-add" onclick="addMember()">名前を追加</button>
-        <button class="btn-delete" onclick="deleteSelectedMember()">選択中の名前を削除</button>
+      <h2 class="section-title">この端末の状態</h2>
+      <div class="status-box" id="currentUserBox">
+        現在のユーザー: 未設定
+      </div>
+      <div class="notice" id="modeInfo">
+        URLモード: 通常表示
       </div>
     </div>
 
     <div class="card">
-      <h2 class="section-title">操作</h2>
+      <h2 class="section-title">手動操作</h2>
       <div class="button-row">
         <button class="btn-checkin" onclick="checkIn()">入室</button>
         <button class="btn-checkout" onclick="checkOut()">退出</button>
+      </div>
+      <div class="notice">
+        NFCタグがまだない間は、手動でこのボタンで確認できます。<br>
+        あとで `?mode=checkin` をURLにつければ、自動入室にできます。
       </div>
     </div>
 
@@ -297,6 +282,10 @@
   </div>
 
   <script>
+    // =========================
+    // Firebase設定
+    // 自分の値に変更してください
+    // =========================
     var firebaseConfig = {
       apiKey: "AIzaSyDykqZFJcIurcovYkQvbWqr5vchYGOHgsU",
       authDomain: "system-2e861.firebaseapp.com",
@@ -307,107 +296,74 @@
     firebase.initializeApp(firebaseConfig);
     var db = firebase.database();
 
+    // =========================
+    // ローカル保存用キー
+    // =========================
+    var STORAGE_KEY = "lab_selected_user";
+
+    // 現在在室者キャッシュ
     var currentUsersCache = {};
-    var selectedUser = localStorage.getItem("lab_selected_user") || "";
 
-    function getSavedMembers() {
-      try {
-        return JSON.parse(localStorage.getItem("lab_saved_members") || "[]");
-      } catch (e) {
-        return [];
-      }
+    function getSavedName() {
+      return localStorage.getItem(STORAGE_KEY) || "";
     }
 
-    function setSavedMembers(list) {
-      localStorage.setItem("lab_saved_members", JSON.stringify(list));
+    function setSavedName(name) {
+      localStorage.setItem(STORAGE_KEY, name);
     }
 
-    function saveSelectedUser(name) {
-      selectedUser = name;
-      localStorage.setItem("lab_selected_user", name);
-      renderSelectedUser();
-      loadTodayMyTotal();
+    function removeSavedName() {
+      localStorage.removeItem(STORAGE_KEY);
     }
 
-    function renderSelectedUser() {
-      document.getElementById("selectedUserBox").textContent =
-        "選択中: " + (selectedUser || "なし");
-    }
-
-    function renderSavedMembers() {
-      var box = document.getElementById("savedMembers");
-      box.innerHTML = "";
-
-      var members = getSavedMembers();
-
-      if (members.length === 0) {
-        box.innerHTML = '<div class="empty">まだ名前が登録されていません。</div>';
-        renderSelectedUser();
-        return;
-      }
-
-      members.forEach(function(name) {
-        var btn = document.createElement("button");
-        btn.className = "member-chip" + (name === selectedUser ? " selected" : "");
-        btn.textContent = name;
-        btn.onclick = function() {
-          saveSelectedUser(name);
-          renderSavedMembers();
-        };
-        box.appendChild(btn);
-      });
-
-      renderSelectedUser();
-    }
-
-    function addMember() {
-      var input = document.getElementById("newName");
-      var name = input.value.trim();
-
+    function saveName() {
+      var name = document.getElementById("nameInput").value.trim();
       if (!name) {
         alert("名前を入力してください");
         return;
       }
-
-      var members = getSavedMembers();
-
-      if (members.includes(name)) {
-        alert("その名前はすでに登録されています");
-        saveSelectedUser(name);
-        renderSavedMembers();
-        input.value = "";
-        return;
-      }
-
-      members.push(name);
-      members.sort(function(a, b) {
-        return a.localeCompare(b, "ja");
-      });
-
-      setSavedMembers(members);
-      saveSelectedUser(name);
-      renderSavedMembers();
-      input.value = "";
+      setSavedName(name);
+      updateCurrentUserUI();
+      loadTodayMyTotal();
+      alert("この端末に「" + name + "」を保存しました");
     }
 
-    function deleteSelectedMember() {
-      if (!selectedUser) {
-        alert("削除する名前を選択してください");
-        return;
-      }
-
-      var ok = confirm(selectedUser + " を端末の登録一覧から削除しますか？");
-      if (!ok) return;
-
-      var members = getSavedMembers().filter(function(name) {
-        return name !== selectedUser;
-      });
-
-      setSavedMembers(members);
-      selectedUser = "";
-      localStorage.removeItem("lab_selected_user");
-      renderSavedMembers();
+    function clearSavedName() {
+      removeSavedName();
+      document.getElementById("nameInput").value = "";
+      updateCurrentUserUI();
       loadTodayMyTotal();
+      alert("保存済みの名前を削除しました");
+    }
+
+    function updateCurrentUserUI() {
+      var savedName = getSavedName();
+      var box = document.getElementById("currentUserBox");
+
+      if (savedName) {
+        box.textContent = "現在のユーザー: " + savedName;
+        document.getElementById("nameInput").value = savedName;
+      } else {
+        box.textContent = "現在のユーザー: 未設定";
+      }
+    }
+
+    function getQueryParam(name) {
+      var url = new URL(window.location.href);
+      return url.searchParams.get(name);
+    }
+
+    function updateModeInfo() {
+      var mode = getQueryParam("mode");
+      var modeInfo = document.getElementById("modeInfo");
+
+      if (mode === "checkin") {
+        modeInfo.textContent = "URLモード: 自動入室";
+      } else if (mode === "checkout") {
+        modeInfo.textContent = "URLモード: 自動退出";
+      } else {
+        modeInfo.textContent = "URLモード: 通常表示";
+      }
     }
 
     function todayKey() {
@@ -453,49 +409,56 @@
         .replace(/'/g, "&#039;");
     }
 
+    // =========================
+    // 入室
+    // =========================
     function checkIn() {
-      if (!selectedUser) {
-        alert("先に名前を選択してください");
-        return;
+      var name = getSavedName();
+
+      if (!name) {
+        alert("先にこの端末の名前を保存してください");
+        return Promise.resolve();
       }
 
-      var encodedName = encodeURIComponent(selectedUser);
+      var encodedName = encodeURIComponent(name);
       var userRef = db.ref("users/" + encodedName);
 
-      userRef.once("value").then(function(snapshot) {
+      return userRef.once("value").then(function(snapshot) {
         if (snapshot.exists()) {
-          alert("この名前はすでに入室中です");
-          return;
+          return Promise.resolve("already_in");
         }
 
         var now = Date.now();
         return userRef.set({
-          name: selectedUser,
+          name: name,
           checkInTime: now,
           status: "in"
+        }).then(function() {
+          loadTodayMyTotal();
+          return "checked_in";
         });
-      }).then(function() {
-        loadTodayMyTotal();
       }).catch(function(error) {
-        if (error) {
-          alert("入室に失敗しました: " + error.message);
-        }
+        alert("入室に失敗しました: " + error.message);
       });
     }
 
+    // =========================
+    // 退出
+    // =========================
     function checkOut() {
-      if (!selectedUser) {
-        alert("先に名前を選択してください");
-        return;
+      var name = getSavedName();
+
+      if (!name) {
+        alert("先にこの端末の名前を保存してください");
+        return Promise.resolve();
       }
 
-      var encodedName = encodeURIComponent(selectedUser);
+      var encodedName = encodeURIComponent(name);
       var userRef = db.ref("users/" + encodedName);
 
-      userRef.once("value").then(function(snapshot) {
+      return userRef.once("value").then(function(snapshot) {
         if (!snapshot.exists()) {
-          alert("この名前は現在入室していません");
-          return;
+          return Promise.resolve("not_in");
         }
 
         var data = snapshot.val();
@@ -508,7 +471,7 @@
         var totalRef = db.ref("dailyTotals/" + encodedName + "/" + day);
 
         return historyRef.set({
-          name: selectedUser,
+          name: name,
           checkInTime: checkInTime,
           checkOutTime: now,
           durationMs: durationMs
@@ -520,22 +483,25 @@
           return userRef.remove();
         }).then(function() {
           loadTodayMyTotal();
-          alert(selectedUser + " さんを退出処理しました");
+          return "checked_out";
         });
       }).catch(function(error) {
-        if (error) {
-          alert("退出に失敗しました: " + error.message);
-        }
+        alert("退出に失敗しました: " + error.message);
       });
     }
 
+    // =========================
+    // 今日の累計滞在時間
+    // =========================
     function loadTodayMyTotal() {
-      if (!selectedUser) {
+      var name = getSavedName();
+
+      if (!name) {
         document.getElementById("myTodayTotal").textContent = "0分";
         return;
       }
 
-      var encodedName = encodeURIComponent(selectedUser);
+      var encodedName = encodeURIComponent(name);
       var day = todayKey();
       var totalRef = db.ref("dailyTotals/" + encodedName + "/" + day);
 
@@ -556,6 +522,9 @@
       });
     }
 
+    // =========================
+    // 在室者購読
+    // =========================
     function subscribeUsers() {
       db.ref("users").on("value", function(snapshot) {
         currentUsersCache = {};
@@ -608,11 +577,47 @@
       });
     }
 
+    // =========================
+    // 起動時処理
+    // =========================
     window.onload = function() {
-      renderSavedMembers();
+      updateCurrentUserUI();
+      updateModeInfo();
       subscribeUsers();
       loadTodayMyTotal();
       setInterval(renderUsersFromCache, 1000);
+
+      var mode = getQueryParam("mode");
+      var savedName = getSavedName();
+
+      if (!savedName) {
+        return;
+      }
+
+      // NFCの代わりにURLでテストできる
+      if (mode === "checkin") {
+        setTimeout(function() {
+          checkIn().then(function(result) {
+            if (result === "checked_in") {
+              alert(savedName + " さんを自動入室しました");
+            } else if (result === "already_in") {
+              alert(savedName + " さんはすでに入室中です");
+            }
+          });
+        }, 300);
+      }
+
+      if (mode === "checkout") {
+        setTimeout(function() {
+          checkOut().then(function(result) {
+            if (result === "checked_out") {
+              alert(savedName + " さんを自動退出しました");
+            } else if (result === "not_in") {
+              alert(savedName + " さんは現在入室していません");
+            }
+          });
+        }, 300);
+      }
     };
   </script>
 </body>
