@@ -1,90 +1,533 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>研究室在室システム</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>研究室在室システム</title>
 
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-<style>
-body {
-  font-family: sans-serif;
-  padding: 20px;
-}
-button {
-  padding: 10px;
-  margin: 5px;
-}
-</style>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      background: #f5f7fb;
+      color: #1f2937;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 20px 16px 40px;
+    }
+
+    .title {
+      font-size: 2rem;
+      font-weight: 800;
+      margin: 16px 0 24px;
+      line-height: 1.2;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+      margin-bottom: 16px;
+    }
+
+    .label {
+      display: block;
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 14px 14px;
+      font-size: 1rem;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      outline: none;
+      margin-bottom: 14px;
+    }
+
+    input[type="text"]:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: none;
+      border-radius: 12px;
+      padding: 12px 18px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-checkin {
+      background: #16a34a;
+      color: white;
+    }
+
+    .btn-checkout {
+      background: #dc2626;
+      color: white;
+    }
+
+    .btn-refresh {
+      background: #2563eb;
+      color: white;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .summary-box {
+      background: #eff6ff;
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .summary-title {
+      font-size: 0.85rem;
+      color: #4b5563;
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+
+    .summary-value {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #111827;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin: 8px 0 14px;
+    }
+
+    .sub-text {
+      color: #6b7280;
+      font-size: 0.95rem;
+      margin-top: 8px;
+    }
+
+    .member-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .member-card {
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 14px 16px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+      border-left: 6px solid #16a34a;
+    }
+
+    .member-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .member-name {
+      font-size: 1.15rem;
+      font-weight: 800;
+    }
+
+    .badge {
+      background: #dcfce7;
+      color: #166534;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .member-meta {
+      color: #4b5563;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .empty {
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 18px;
+      color: #6b7280;
+      text-align: center;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+    }
+
+    .history-box {
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+      color: #374151;
+      line-height: 1.7;
+    }
+
+    .notice {
+      margin-top: 10px;
+      font-size: 0.92rem;
+      color: #6b7280;
+    }
+
+    @media (max-width: 560px) {
+      .title {
+        font-size: 1.9rem;
+      }
+
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .button-row {
+        flex-direction: column;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
 </head>
-
 <body>
+  <div class="container">
+    <h1 class="title">研究室在室システム</h1>
 
-<h2>研究室在室システム</h2>
+    <div class="card">
+      <label class="label" for="name">名前</label>
+      <input id="name" type="text" placeholder="名前を入力">
 
-<input id="name" placeholder="名前を入力">
-<br><br>
+      <div class="button-row">
+        <button class="btn-checkin" onclick="checkIn()">入室</button>
+        <button class="btn-checkout" onclick="checkOut()">退出</button>
+        <button class="btn-refresh" onclick="loadTodayMyTotal()">今日の自分の累計</button>
+      </div>
 
-<button onclick="checkIn()">入室</button>
-<button onclick="checkOut()">退出</button>
+      <div class="notice">
+        一度入力した名前はこの端末に保存されます。
+      </div>
+    </div>
 
-<h3>現在いる人</h3>
-<ul id="list"></ul>
+    <div class="card">
+      <div class="summary">
+        <div class="summary-box">
+          <div class="summary-title">現在の人数</div>
+          <div class="summary-value" id="currentCount">0人</div>
+        </div>
+        <div class="summary-box">
+          <div class="summary-title">今日の自分の累計滞在時間</div>
+          <div class="summary-value" id="myTodayTotal">0分</div>
+        </div>
+      </div>
+      <div class="sub-text" id="lastUpdated">最終更新: -</div>
+    </div>
 
-<script>
-var firebaseConfig = {
-  apiKey: "AIzaSyDykqZFJcIurcovYkQvbWqr5vchYGOHgsU",
-  authDomain: "system-2e861.firebaseapp.com",
-  databaseURL: "https://system-2e861-default-rtdb.firebaseio.com",
-  projectId: "system-2e861",
-};
+    <h2 class="section-title">現在いる人</h2>
+    <div id="memberList" class="member-list"></div>
 
-window.onload = function() {
-  var saved = localStorage.getItem("name");
-  if (saved) {
-    document.getElementById("name").value = saved;
-  }
-}
+    <h2 class="section-title">使い方</h2>
+    <div class="history-box">
+      1. 最初に自分の名前を入力します。<br>
+      2. 研究室に来たら「入室」を押します。<br>
+      3. 帰るときに「退出」を押します。<br>
+      4. 退出すると滞在時間が履歴に保存され、今日の累計に加算されます。
+    </div>
+  </div>
 
-firebase.initializeApp(firebaseConfig);
-var db = firebase.database();
+  <script>
+    // =========================
+    // Firebase設定
+    // 自分のFirebaseプロジェクトの値に置き換えてください
+    // =========================
+    var firebaseConfig = {
+      apiKey: "AIzaSyDykqZFJcIurcovYkQvbWqr5vchYGOHgsU",
+      authDomain: "system-2e861.firebaseapp.com",
+      databaseURL: "https://system-2e861-default-rtdb.firebaseio.com",
+      projectId: "system-2e861"
+    };
 
-function checkIn() {
-  var name = document.getElementById("name").value;
-  if (!name) return alert("名前を入力してください");
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.database();
 
-  localStorage.setItem("name", name);
+    // =========================
+    // 共通関数
+    // =========================
+    function getNameInput() {
+      return document.getElementById("name");
+    }
 
-  db.ref("users/" + name).set({
-    name: name,
-    time: Date.now(),
-    status: "in"
-  });
-}
+    function getSavedName() {
+      return localStorage.getItem("lab_saved_name") || "";
+    }
 
+    function saveName(name) {
+      localStorage.setItem("lab_saved_name", name);
+    }
 
-function checkOut() {
-  var name = document.getElementById("name").value;
-  if (!name) return alert("名前を入力してください");
+    function todayKey() {
+      var now = new Date();
+      var y = now.getFullYear();
+      var m = String(now.getMonth() + 1).padStart(2, "0");
+      var d = String(now.getDate()).padStart(2, "0");
+      return y + "-" + m + "-" + d;
+    }
 
-  db.ref("users/" + name).remove();
-}
+    function formatDateTime(ms) {
+      var date = new Date(ms);
+      var y = date.getFullYear();
+      var m = String(date.getMonth() + 1).padStart(2, "0");
+      var d = String(date.getDate()).padStart(2, "0");
+      var hh = String(date.getHours()).padStart(2, "0");
+      var mm = String(date.getMinutes()).padStart(2, "0");
+      return y + "/" + m + "/" + d + " " + hh + ":" + mm;
+    }
 
-db.ref("users").on("value", function(snapshot) {
-  var list = document.getElementById("list");
-  list.innerHTML = "";
+    function formatDuration(ms) {
+      var totalSec = Math.max(0, Math.floor(ms / 1000));
+      var hours = Math.floor(totalSec / 3600);
+      var minutes = Math.floor((totalSec % 3600) / 60);
 
-  snapshot.forEach(function(child) {
-    var data = child.val();
-    var li = document.createElement("li");
-    var minutes = Math.floor((Date.now() - data.time) / 60000);
-    li.textContent = data.name + "（" + minutes + "分）";
-    list.appendChild(li);
-  });
-});
-</script>
+      if (hours > 0) {
+        return hours + "時間" + minutes + "分";
+      }
+      return minutes + "分";
+    }
 
+    function setLastUpdated() {
+      document.getElementById("lastUpdated").textContent =
+        "最終更新: " + formatDateTime(Date.now());
+    }
+
+    // 現在在室者のローカルキャッシュ
+    var currentUsersCache = {};
+
+    // =========================
+    // 初期化
+    // =========================
+    window.onload = function() {
+      var saved = getSavedName();
+      if (saved) {
+        getNameInput().value = saved;
+      }
+      loadTodayMyTotal();
+      subscribeUsers();
+      setInterval(renderUsersFromCache, 1000);
+    };
+
+    // =========================
+    // 入室
+    // =========================
+    function checkIn() {
+      var name = getNameInput().value.trim();
+
+      if (!name) {
+        alert("名前を入力してください");
+        return;
+      }
+
+      saveName(name);
+
+      var userRef = db.ref("users/" + encodeURIComponent(name));
+
+      userRef.once("value").then(function(snapshot) {
+        if (snapshot.exists()) {
+          alert("この名前はすでに入室中です");
+          return;
+        }
+
+        var now = Date.now();
+        userRef.set({
+          name: name,
+          checkInTime: now,
+          status: "in"
+        }).then(function() {
+          loadTodayMyTotal();
+        }).catch(function(error) {
+          alert("入室に失敗しました: " + error.message);
+        });
+      });
+    }
+
+    // =========================
+    // 退出
+    // =========================
+    function checkOut() {
+      var name = getNameInput().value.trim();
+
+      if (!name) {
+        alert("名前を入力してください");
+        return;
+      }
+
+      saveName(name);
+
+      var encodedName = encodeURIComponent(name);
+      var userRef = db.ref("users/" + encodedName);
+
+      userRef.once("value").then(function(snapshot) {
+        if (!snapshot.exists()) {
+          alert("この名前は現在入室していません");
+          return;
+        }
+
+        var data = snapshot.val();
+        var now = Date.now();
+        var checkInTime = data.checkInTime || now;
+        var durationMs = now - checkInTime;
+        var day = todayKey();
+
+        var historyRef = db.ref("history/" + encodedName + "/" + now);
+        var totalRef = db.ref("dailyTotals/" + encodedName + "/" + day);
+
+        historyRef.set({
+          name: name,
+          checkInTime: checkInTime,
+          checkOutTime: now,
+          durationMs: durationMs
+        }).then(function() {
+          return totalRef.transaction(function(current) {
+            return (current || 0) + durationMs;
+          });
+        }).then(function() {
+          return userRef.remove();
+        }).then(function() {
+          loadTodayMyTotal();
+          alert(name + " さんを退出処理しました");
+        }).catch(function(error) {
+          alert("退出に失敗しました: " + error.message);
+        });
+      });
+    }
+
+    // =========================
+    // 今日の自分の累計滞在時間
+    // =========================
+    function loadTodayMyTotal() {
+      var name = getNameInput().value.trim() || getSavedName();
+
+      if (!name) {
+        document.getElementById("myTodayTotal").textContent = "0分";
+        return;
+      }
+
+      var encodedName = encodeURIComponent(name);
+      var day = todayKey();
+      var totalRef = db.ref("dailyTotals/" + encodedName + "/" + day);
+
+      totalRef.once("value").then(function(snapshot) {
+        var totalMs = snapshot.val() || 0;
+
+        // もし現在入室中なら、その経過分も足して表示
+        return db.ref("users/" + encodedName).once("value").then(function(userSnap) {
+          if (userSnap.exists()) {
+            var user = userSnap.val();
+            if (user.checkInTime) {
+              totalMs += (Date.now() - user.checkInTime);
+            }
+          }
+          document.getElementById("myTodayTotal").textContent = formatDuration(totalMs);
+        });
+      }).catch(function() {
+        document.getElementById("myTodayTotal").textContent = "取得失敗";
+      });
+    }
+
+    // =========================
+    // 在室者購読
+    // =========================
+    function subscribeUsers() {
+      db.ref("users").on("value", function(snapshot) {
+        currentUsersCache = {};
+        snapshot.forEach(function(child) {
+          currentUsersCache[child.key] = child.val();
+        });
+        renderUsersFromCache();
+        setLastUpdated();
+        loadTodayMyTotal();
+      });
+    }
+
+    // =========================
+    // 描画
+    // =========================
+    function renderUsersFromCache() {
+      var memberList = document.getElementById("memberList");
+      var countEl = document.getElementById("currentCount");
+
+      memberList.innerHTML = "";
+
+      var users = Object.values(currentUsersCache);
+
+      users.sort(function(a, b) {
+        return (a.checkInTime || 0) - (b.checkInTime || 0);
+      });
+
+      countEl.textContent = users.length + "人";
+
+      if (users.length === 0) {
+        memberList.innerHTML = '<div class="empty">現在、研究室にいる人はいません。</div>';
+        return;
+      }
+
+      users.forEach(function(user) {
+        var card = document.createElement("div");
+        card.className = "member-card";
+
+        var elapsedMs = Date.now() - (user.checkInTime || Date.now());
+
+        card.innerHTML = `
+          <div class="member-top">
+            <div class="member-name">${escapeHtml(user.name || "名前なし")}</div>
+            <div class="badge">在室中</div>
+          </div>
+          <div class="member-meta">
+            入室時刻: ${formatDateTime(user.checkInTime || Date.now())}<br>
+            滞在時間: ${formatDuration(elapsedMs)}
+          </div>
+        `;
+
+        memberList.appendChild(card);
+      });
+    }
+
+    // =========================
+    // HTMLエスケープ
+    // =========================
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+  </script>
 </body>
 </html>
