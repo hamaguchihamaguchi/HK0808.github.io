@@ -78,30 +78,18 @@ const LOCK_SECONDS = 10;
 const SECRET_KEY = "lab2026_attendance_x9k3";
 
 // =========================
-// 日付処理
+// 共通
 // =========================
+function getQueryParam(name) {
+  const url = new URL(window.location.href);
+  return url.searchParams.get(name);
+}
+
 function getDayKey(ms) {
   const d = new Date(ms);
   return d.getFullYear() + "-" +
     String(d.getMonth() + 1).padStart(2, "0") + "-" +
     String(d.getDate()).padStart(2, "0");
-}
-
-function getMonthKey(ms) {
-  const d = new Date(ms);
-  return d.getFullYear() + "-" +
-    String(d.getMonth() + 1).padStart(2, "0");
-}
-
-function getWeekKey(ms) {
-  const d = new Date(ms);
-  const day = d.getDay();
-  const diffToMonday = (day === 0 ? 6 : day - 1);
-  d.setDate(d.getDate() - diffToMonday);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return y + "-W-" + m + "-" + dd;
 }
 
 function nextDayStart(ms) {
@@ -110,14 +98,6 @@ function nextDayStart(ms) {
   return d.getTime();
 }
 
-function getQueryParam(name) {
-  const url = new URL(window.location.href);
-  return url.searchParams.get(name);
-}
-
-// =========================
-// UI
-// =========================
 function setMessage(msg, detail, cls) {
   const m = document.getElementById("message");
   const d = document.getElementById("detail");
@@ -127,34 +107,34 @@ function setMessage(msg, detail, cls) {
 }
 
 // =========================
-// 日跨ぎ・月跨ぎ・週集計
+// 日跨ぎ用に、日ごとの履歴も保存
+// viewer用にも使える
 // =========================
-async function addDurationSplit(encodedName, decodedName, start, end) {
-  let cur = start;
+async function saveHistoryByDateSplit(encodedName, name, sessionId, startMs, endMs) {
+  let cursor = startMs;
 
-  while (cur < end) {
-    const next = nextDayStart(cur);
-    const segmentEnd = Math.min(end, next);
-    const duration = segmentEnd - cur;
+  while (cursor < endMs) {
+    const next = nextDayStart(cursor);
+    const segmentEnd = Math.min(endMs, next);
+    const duration = segmentEnd - cursor;
+    const dayKey = getDayKey(cursor);
 
-    const dayKey = getDayKey(cur);
-    const monthKey = getMonthKey(cur);
-    const weekKey = getWeekKey(cur);
+    await db.ref("historyByDate/" + dayKey + "/" + encodedName + "/" + sessionId + "_" + cursor).set({
+      name: name,
+      rootSessionId: sessionId,
+      segmentStartTime: cursor,
+      segmentEndTime: segmentEnd,
+      durationMs: duration,
+      checkInTime: startMs,
+      checkOutTime: endMs
+    });
 
-    const dailyRef = db.ref("dailyTotals/" + encodedName + "/" + dayKey);
-    const monthlyRef = db.ref("monthlyTotals/" + encodedName + "/" + monthKey);
-    const weeklyRef = db.ref("weeklyTotals/" + weekKey + "/" + encodedName);
-
-    await dailyRef.transaction(v => (v || 0) + duration);
-    await monthlyRef.transaction(v => (v || 0) + duration);
-    await weeklyRef.transaction(v => (v || 0) + duration);
-
-    cur = segmentEnd;
+    cursor = segmentEnd;
   }
 }
 
 // =========================
-// 打刻
+// 打刻本体
 // =========================
 async function run() {
   const key = getQueryParam("key");
@@ -172,12 +152,12 @@ async function run() {
   const encoded = encodeURIComponent(name);
   const now = Date.now();
 
-  // 連打防止
+  // 10秒以内再打刻防止
   const metaRef = db.ref("meta/" + encoded);
   const metaSnap = await metaRef.once("value");
   const meta = metaSnap.val() || {};
 
-  if (meta.lastActionTime && now - meta.lastActionTime < LOCK_SECONDS * 1000) {
+  if (meta.lastActionTime && (now - meta.lastActionTime) < LOCK_SECONDS * 1000) {
     const remain = Math.ceil((LOCK_SECONDS * 1000 - (now - meta.lastActionTime)) / 1000);
     setMessage("連続打刻不可", "あと " + remain + " 秒待ってください", "warn");
     return;
@@ -196,7 +176,8 @@ async function run() {
     });
 
     await metaRef.update({
-      lastActionTime: now
+      lastActionTime: now,
+      lastActionType: "checkin"
     });
 
     setMessage("入室しました", name, "success");
@@ -209,37 +190,25 @@ async function run() {
   const data = snap.val();
   const checkIn = data.checkInTime;
   const duration = now - checkIn;
+  const sessionId = String(now);
 
-  const checkoutDayKey = getDayKey(now);
-  const checkoutMonthKey = getMonthKey(now);
-
-  // 元の履歴（ユーザー別）
-  await db.ref("history/" + encoded + "/" + now).set({
+  // 生の履歴（これを記録ページの唯一の真実のソースにする）
+  await db.ref("history/" + encoded + "/" + sessionId).set({
     name: name,
     checkInTime: checkIn,
     checkOutTime: now,
-    durationMs: duration,
-    dayKey: checkoutDayKey,
-    monthKey: checkoutMonthKey
+    durationMs: duration
   });
 
-  // 日付別履歴（軽量表示用）
-  await db.ref("historyByDate/" + checkoutDayKey + "/" + encoded + "/" + now).set({
-    name: name,
-    checkInTime: checkIn,
-    checkOutTime: now,
-    durationMs: duration,
-    dayKey: checkoutDayKey,
-    monthKey: checkoutMonthKey
-  });
+  // 日付別履歴（閲覧ページなど用）
+  await saveHistoryByDateSplit(encoded, name, sessionId, checkIn, now);
 
-  // 日跨ぎ・月跨ぎ・週集計
-  await addDurationSplit(encoded, name, checkIn, now);
-
+  // 在室から削除
   await userRef.remove();
 
   await metaRef.update({
-    lastActionTime: now
+    lastActionTime: now,
+    lastActionType: "checkout"
   });
 
   setMessage("退出しました", name, "neutral");
