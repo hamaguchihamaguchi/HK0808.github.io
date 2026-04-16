@@ -63,6 +63,11 @@
       color: #111827;
       margin-top: 10px;
     }
+    .warn {
+      color: #b91c1c;
+      font-weight: 700;
+      margin-top: 12px;
+    }
   </style>
 </head>
 <body>
@@ -76,11 +81,13 @@
       <input id="nameInput" type="text" placeholder="名前を入力">
       <button onclick="saveName()">この端末に名前を保存</button>
       <div class="status" id="currentStatus">現在の保存名: 未設定</div>
+      <div class="warn">
+        このページからは打刻できません。打刻はNFCタグ経由のみです。
+      </div>
     </div>
 
     <div class="card links">
-      <a href="./touch.html">打刻ページを開く</a>
-      <a href="./viewer.html">閲覧ページを開く</a>
+      <a href="./viewer.html">在室状況を見る</a>
     </div>
   </div>
 
