@@ -37,7 +37,7 @@
     }
     .summary {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 12px;
     }
     .summary-box {
@@ -52,7 +52,7 @@
       font-weight: 700;
     }
     .summary-value {
-      font-size: 1.2rem;
+      font-size: 1.1rem;
       font-weight: 800;
       color: #111827;
       line-height: 1.4;
@@ -94,11 +94,18 @@
       flex-wrap: wrap;
       margin-bottom: 14px;
     }
-    input, select {
+    input, select, button {
       padding: 12px;
       border: 1px solid #d1d5db;
       border-radius: 10px;
       font-size: 1rem;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
     }
     a {
       color: #2563eb;
@@ -139,6 +146,10 @@
           <div class="summary-title">表示対象月</div>
           <div class="summary-value" id="currentMonthLabel">-</div>
         </div>
+        <div class="summary-box">
+          <div class="summary-title">先月スナップショット</div>
+          <div class="summary-value" id="lastMonthLabel">-</div>
+        </div>
       </div>
 
       <div style="margin-top:16px;">
@@ -157,7 +168,7 @@
     </div>
 
     <div class="card">
-      <h2>個人の月間合計時間</h2>
+      <h2>今月の個人合計時間</h2>
       <div class="filter-row">
         <select id="monthSelect"></select>
       </div>
@@ -165,9 +176,15 @@
     </div>
 
     <div class="card">
+      <h2>先月の個人合計時間（確定値）</h2>
+      <div id="lastMonthTotals" class="rank-list"></div>
+    </div>
+
+    <div class="card">
       <h2>打刻履歴の確認</h2>
       <div class="filter-row">
         <input type="text" id="historyNameFilter" placeholder="名前で絞り込み">
+        <button id="cleanupBtn">35日より古い履歴を整理</button>
       </div>
       <div id="historyList" class="history-list"></div>
     </div>
@@ -186,6 +203,7 @@
 
     let usersCache = {};
     let sessionsCache = [];
+    let monthlySnapshotsCache = {};
 
     function todayKey() {
       const now = new Date();
@@ -196,6 +214,12 @@
 
     function currentMonthKey() {
       const now = new Date();
+      return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    }
+
+    function previousMonthKey() {
+      const now = new Date();
+      now.setMonth(now.getMonth() - 1);
       return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
     }
 
@@ -311,6 +335,7 @@
       }
 
       document.getElementById("currentMonthLabel").textContent = select.value;
+      document.getElementById("lastMonthLabel").textContent = previousMonthKey();
     }
 
     function renderRankList(containerId, arr) {
@@ -337,7 +362,6 @@
       const map = {};
       const now = Date.now();
 
-      // 退出済みセッション
       sessionsCache.forEach(function(s) {
         const name = s.name || "名前なし";
         if (!map[name]) map[name] = 0;
@@ -349,7 +373,6 @@
         );
       });
 
-      // 在室中セッション
       Object.keys(usersCache).forEach(function(encodedName) {
         const user = usersCache[encodedName];
         const name = user.name || decodeURIComponent(encodedName);
@@ -388,6 +411,22 @@
       const arr = buildRanking(rangeStart, rangeEnd);
 
       renderRankList("monthlyTotals", arr);
+    }
+
+    function renderLastMonthTotals() {
+      const prev = previousMonthKey();
+      document.getElementById("lastMonthLabel").textContent = prev;
+
+      const node = monthlySnapshotsCache[prev] || {};
+      const arr = Object.keys(node)
+        .map(encodedName => ({
+          name: node[encodedName].name || decodeURIComponent(encodedName),
+          totalMs: node[encodedName].totalMs || 0
+        }))
+        .filter(x => x.totalMs > 0)
+        .sort((a, b) => b.totalMs - a.totalMs);
+
+      renderRankList("lastMonthTotals", arr);
     }
 
     function renderHistory() {
@@ -429,12 +468,72 @@
       });
     }
 
+    async function createLastMonthSnapshotIfMissing() {
+      const prev = previousMonthKey();
+      const snapRef = db.ref("monthlySnapshots/" + prev);
+      const existing = await snapRef.once("value");
+      if (existing.exists()) return;
+
+      const rangeStart = startOfMonthByKey(prev);
+      const rangeEnd = startOfNextMonthByKey(prev);
+      const arr = buildRanking(rangeStart, rangeEnd);
+
+      const payload = {};
+      arr.forEach(function(item) {
+        const encoded = encodeURIComponent(item.name);
+        payload[encoded] = {
+          name: item.name,
+          totalMs: item.totalMs
+        };
+      });
+
+      await snapRef.set(payload);
+    }
+
+    async function cleanupOldHistory() {
+      const limit = Date.now() - (35 * 24 * 60 * 60 * 1000);
+
+      await createLastMonthSnapshotIfMissing();
+
+      const historySnap = await db.ref("history").once("value");
+      const updates = {};
+
+      historySnap.forEach(function(userNode) {
+        const userKey = userNode.key;
+        userNode.forEach(function(sessionNode) {
+          const data = sessionNode.val() || {};
+          if ((data.checkOutTime || 0) < limit) {
+            updates["history/" + userKey + "/" + sessionNode.key] = null;
+          }
+        });
+      });
+
+      const historyByDateSnap = await db.ref("historyByDate").once("value");
+      historyByDateSnap.forEach(function(dayNode) {
+        dayNode.forEach(function(userNode) {
+          userNode.forEach(function(segmentNode) {
+            const data = segmentNode.val() || {};
+            if ((data.segmentEndTime || 0) < limit) {
+              updates["historyByDate/" + dayNode.key + "/" + userNode.key + "/" + segmentNode.key] = null;
+            }
+          });
+        });
+      });
+
+      if (Object.keys(updates).length > 0) {
+        await db.ref().update(updates);
+      }
+
+      alert("35日より古い履歴を整理しました。");
+    }
+
     function renderAll() {
       document.getElementById("currentCount").textContent = Object.keys(usersCache).length + "人";
       buildMonthOptions();
       renderTodayRanking();
       renderWeeklyRanking();
       renderMonthlyTotals();
+      renderLastMonthTotals();
       renderHistory();
     }
 
@@ -463,10 +562,15 @@
         renderAll();
       });
 
+      db.ref("monthlySnapshots").on("value", function(snapshot) {
+        monthlySnapshotsCache = snapshot.val() || {};
+        renderLastMonthTotals();
+      });
+
       document.getElementById("monthSelect").addEventListener("change", renderMonthlyTotals);
       document.getElementById("historyNameFilter").addEventListener("input", renderHistory);
+      document.getElementById("cleanupBtn").addEventListener("click", cleanupOldHistory);
 
-      // 在室中の経過時間反映用に1分ごとだけ再描画
       setInterval(function() {
         renderTodayRanking();
         renderWeeklyRanking();
