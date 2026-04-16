@@ -138,8 +138,9 @@
           <div class="summary-value" id="lastUpdated">-</div>
         </div>
       </div>
+      <div class="sub">このページは閲覧専用です。開いても入退室は発生しません。</div>
       <div class="sub"><a href="./index.html">名前設定ページへ</a></div>
-      <a href="./admin.html">記録ページへ</a>
+      <div class="sub"><a href="./admin.html">記録ページへ</a></div>
     </div>
 
     <div id="memberList" class="member-list"></div>
@@ -155,6 +156,7 @@
 
     firebase.initializeApp(firebaseConfig);
     var db = firebase.database();
+
     var currentUsersCache = {};
     var historyTodayCache = {};
 
@@ -197,7 +199,7 @@
       const countEl = document.getElementById("currentCount");
       memberList.innerHTML = "";
 
-      const inUsers = Object.values(currentUsersCache).map(u => ({...u, isIn:true}));
+      const inUsers = Object.values(currentUsersCache).map(u => ({ ...u, isIn: true }));
 
       const outUsers = [];
       Object.keys(historyTodayCache).forEach(function(name) {
@@ -205,12 +207,13 @@
         if (!currentUsersCache[encoded]) {
           const sessions = Object.values(historyTodayCache[name] || {});
           if (sessions.length > 0) {
-            sessions.sort((a,b) => (b.checkOutTime||0) - (a.checkOutTime||0));
+            sessions.sort((a, b) => (b.checkOutTime || 0) - (a.checkOutTime || 0));
             const last = sessions[0];
+
             outUsers.push({
               name: name,
               checkOutTime: last.checkOutTime,
-              durationMs: last.durationMs,
+              durationMs: Math.max(0, (last.checkOutTime || 0) - (last.checkInTime || 0)),
               isIn: false
             });
           }
@@ -265,21 +268,25 @@
     }
 
     function loadTodayHistory() {
-      db.ref("history").once("value", function(snapshot) {
+      const today = todayKey();
+      db.ref("historyByDate/" + today).on("value", function(snapshot) {
         historyTodayCache = {};
-        const today = todayKey();
+
         snapshot.forEach(function(userNode) {
           const encodedName = userNode.key;
+          const decodedName = decodeURIComponent(encodedName);
           const sessionsObj = userNode.val() || {};
-          Object.keys(sessionsObj).forEach(function(ts) {
-            const session = sessionsObj[ts];
-            if (session.dayKey === today) {
-              const decodedName = decodeURIComponent(encodedName);
-              if (!historyTodayCache[decodedName]) historyTodayCache[decodedName] = {};
-              historyTodayCache[decodedName][ts] = session;
-            }
+
+          if (!historyTodayCache[decodedName]) {
+            historyTodayCache[decodedName] = {};
+          }
+
+          Object.keys(sessionsObj).forEach(function(key) {
+            const session = sessionsObj[key];
+            historyTodayCache[decodedName][key] = session;
           });
         });
+
         renderUsers();
       });
     }
@@ -294,8 +301,7 @@
       });
 
       loadTodayHistory();
-      setInterval(renderUsers, 1000);
-      setInterval(loadTodayHistory, 30000);
+      setInterval(renderUsers, 60000);
     };
   </script>
 </body>
