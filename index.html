@@ -21,7 +21,7 @@
     }
 
     .container {
-      max-width: 720px;
+      max-width: 760px;
       margin: 0 auto;
       padding: 20px 16px 40px;
     }
@@ -34,11 +34,17 @@
     }
 
     .card {
-      background: #ffffff;
+      background: #fff;
       border-radius: 16px;
       padding: 18px;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.06);
       margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 1.3rem;
+      font-weight: 800;
+      margin: 0 0 14px;
     }
 
     .label {
@@ -50,17 +56,17 @@
 
     input[type="text"] {
       width: 100%;
-      padding: 14px 14px;
+      padding: 14px;
       font-size: 1rem;
       border: 1px solid #d1d5db;
       border-radius: 12px;
       outline: none;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
 
     input[type="text"]:focus {
       border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
     }
 
     .button-row {
@@ -78,19 +84,53 @@
       cursor: pointer;
     }
 
+    .btn-add {
+      background: #2563eb;
+      color: #fff;
+    }
+
     .btn-checkin {
       background: #16a34a;
-      color: white;
+      color: #fff;
     }
 
     .btn-checkout {
       background: #dc2626;
-      color: white;
+      color: #fff;
     }
 
-    .btn-refresh {
-      background: #2563eb;
-      color: white;
+    .btn-delete {
+      background: #6b7280;
+      color: #fff;
+    }
+
+    .selected-box {
+      margin-top: 12px;
+      padding: 14px;
+      border-radius: 12px;
+      background: #eff6ff;
+      font-weight: 700;
+    }
+
+    .member-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .member-chip {
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      color: #111827;
+      font-weight: 700;
+      border: 2px solid transparent;
+    }
+
+    .member-chip.selected {
+      background: #dbeafe;
+      border-color: #2563eb;
+      color: #1d4ed8;
     }
 
     .summary {
@@ -118,12 +158,6 @@
       color: #111827;
     }
 
-    .section-title {
-      font-size: 1.5rem;
-      font-weight: 800;
-      margin: 8px 0 14px;
-    }
-
     .sub-text {
       color: #6b7280;
       font-size: 0.95rem;
@@ -137,10 +171,10 @@
     }
 
     .member-card {
-      background: #ffffff;
+      background: #fff;
       border-radius: 14px;
       padding: 14px 16px;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.05);
       border-left: 6px solid #16a34a;
     }
 
@@ -174,32 +208,24 @@
     }
 
     .empty {
-      background: #ffffff;
+      background: #fff;
       border-radius: 14px;
       padding: 18px;
       color: #6b7280;
       text-align: center;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
-    }
-
-    .history-box {
-      background: #ffffff;
-      border-radius: 14px;
-      padding: 14px;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
-      color: #374151;
-      line-height: 1.7;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.05);
     }
 
     .notice {
       margin-top: 10px;
       font-size: 0.92rem;
       color: #6b7280;
+      line-height: 1.6;
     }
 
     @media (max-width: 560px) {
       .title {
-        font-size: 1.9rem;
+        font-size: 1.8rem;
       }
 
       .summary {
@@ -221,17 +247,34 @@
     <h1 class="title">研究室在室システム</h1>
 
     <div class="card">
-      <label class="label" for="name">名前</label>
-      <input id="name" type="text" placeholder="名前を入力">
+      <h2 class="section-title">登録済みメンバー</h2>
+      <div id="savedMembers" class="member-picker"></div>
 
-      <div class="button-row">
-        <button class="btn-checkin" onclick="checkIn()">入室</button>
-        <button class="btn-checkout" onclick="checkOut()">退出</button>
-        <button class="btn-refresh" onclick="loadTodayMyTotal()">今日の自分の累計</button>
+      <div class="selected-box" id="selectedUserBox">
+        選択中: なし
       </div>
 
       <div class="notice">
-        一度入力した名前はこの端末に保存されます。
+        一度追加した名前はこの端末に保存されます。次回からは名前をタップするだけで使えます。
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="section-title">新しい名前を追加</h2>
+      <label class="label" for="newName">名前</label>
+      <input id="newName" type="text" placeholder="新しい名前を入力">
+
+      <div class="button-row">
+        <button class="btn-add" onclick="addMember()">名前を追加</button>
+        <button class="btn-delete" onclick="deleteSelectedMember()">選択中の名前を削除</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="section-title">操作</h2>
+      <div class="button-row">
+        <button class="btn-checkin" onclick="checkIn()">入室</button>
+        <button class="btn-checkout" onclick="checkOut()">退出</button>
       </div>
     </div>
 
@@ -251,21 +294,9 @@
 
     <h2 class="section-title">現在いる人</h2>
     <div id="memberList" class="member-list"></div>
-
-    <h2 class="section-title">使い方</h2>
-    <div class="history-box">
-      1. 最初に自分の名前を入力します。<br>
-      2. 研究室に来たら「入室」を押します。<br>
-      3. 帰るときに「退出」を押します。<br>
-      4. 退出すると滞在時間が履歴に保存され、今日の累計に加算されます。
-    </div>
   </div>
 
   <script>
-    // =========================
-    // Firebase設定
-    // 自分のFirebaseプロジェクトの値に置き換えてください
-    // =========================
     var firebaseConfig = {
       apiKey: "AIzaSyDykqZFJcIurcovYkQvbWqr5vchYGOHgsU",
       authDomain: "system-2e861.firebaseapp.com",
@@ -276,19 +307,107 @@
     firebase.initializeApp(firebaseConfig);
     var db = firebase.database();
 
-    // =========================
-    // 共通関数
-    // =========================
-    function getNameInput() {
-      return document.getElementById("name");
+    var currentUsersCache = {};
+    var selectedUser = localStorage.getItem("lab_selected_user") || "";
+
+    function getSavedMembers() {
+      try {
+        return JSON.parse(localStorage.getItem("lab_saved_members") || "[]");
+      } catch (e) {
+        return [];
+      }
     }
 
-    function getSavedName() {
-      return localStorage.getItem("lab_saved_name") || "";
+    function setSavedMembers(list) {
+      localStorage.setItem("lab_saved_members", JSON.stringify(list));
     }
 
-    function saveName(name) {
-      localStorage.setItem("lab_saved_name", name);
+    function saveSelectedUser(name) {
+      selectedUser = name;
+      localStorage.setItem("lab_selected_user", name);
+      renderSelectedUser();
+      loadTodayMyTotal();
+    }
+
+    function renderSelectedUser() {
+      document.getElementById("selectedUserBox").textContent =
+        "選択中: " + (selectedUser || "なし");
+    }
+
+    function renderSavedMembers() {
+      var box = document.getElementById("savedMembers");
+      box.innerHTML = "";
+
+      var members = getSavedMembers();
+
+      if (members.length === 0) {
+        box.innerHTML = '<div class="empty">まだ名前が登録されていません。</div>';
+        renderSelectedUser();
+        return;
+      }
+
+      members.forEach(function(name) {
+        var btn = document.createElement("button");
+        btn.className = "member-chip" + (name === selectedUser ? " selected" : "");
+        btn.textContent = name;
+        btn.onclick = function() {
+          saveSelectedUser(name);
+          renderSavedMembers();
+        };
+        box.appendChild(btn);
+      });
+
+      renderSelectedUser();
+    }
+
+    function addMember() {
+      var input = document.getElementById("newName");
+      var name = input.value.trim();
+
+      if (!name) {
+        alert("名前を入力してください");
+        return;
+      }
+
+      var members = getSavedMembers();
+
+      if (members.includes(name)) {
+        alert("その名前はすでに登録されています");
+        saveSelectedUser(name);
+        renderSavedMembers();
+        input.value = "";
+        return;
+      }
+
+      members.push(name);
+      members.sort(function(a, b) {
+        return a.localeCompare(b, "ja");
+      });
+
+      setSavedMembers(members);
+      saveSelectedUser(name);
+      renderSavedMembers();
+      input.value = "";
+    }
+
+    function deleteSelectedMember() {
+      if (!selectedUser) {
+        alert("削除する名前を選択してください");
+        return;
+      }
+
+      var ok = confirm(selectedUser + " を端末の登録一覧から削除しますか？");
+      if (!ok) return;
+
+      var members = getSavedMembers().filter(function(name) {
+        return name !== selectedUser;
+      });
+
+      setSavedMembers(members);
+      selectedUser = "";
+      localStorage.removeItem("lab_selected_user");
+      renderSavedMembers();
+      loadTodayMyTotal();
     }
 
     function todayKey() {
@@ -325,36 +444,23 @@
         "最終更新: " + formatDateTime(Date.now());
     }
 
-    // 現在在室者のローカルキャッシュ
-    var currentUsersCache = {};
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
 
-    // =========================
-    // 初期化
-    // =========================
-    window.onload = function() {
-      var saved = getSavedName();
-      if (saved) {
-        getNameInput().value = saved;
-      }
-      loadTodayMyTotal();
-      subscribeUsers();
-      setInterval(renderUsersFromCache, 1000);
-    };
-
-    // =========================
-    // 入室
-    // =========================
     function checkIn() {
-      var name = getNameInput().value.trim();
-
-      if (!name) {
-        alert("名前を入力してください");
+      if (!selectedUser) {
+        alert("先に名前を選択してください");
         return;
       }
 
-      saveName(name);
-
-      var userRef = db.ref("users/" + encodeURIComponent(name));
+      var encodedName = encodeURIComponent(selectedUser);
+      var userRef = db.ref("users/" + encodedName);
 
       userRef.once("value").then(function(snapshot) {
         if (snapshot.exists()) {
@@ -363,32 +469,27 @@
         }
 
         var now = Date.now();
-        userRef.set({
-          name: name,
+        return userRef.set({
+          name: selectedUser,
           checkInTime: now,
           status: "in"
-        }).then(function() {
-          loadTodayMyTotal();
-        }).catch(function(error) {
-          alert("入室に失敗しました: " + error.message);
         });
+      }).then(function() {
+        loadTodayMyTotal();
+      }).catch(function(error) {
+        if (error) {
+          alert("入室に失敗しました: " + error.message);
+        }
       });
     }
 
-    // =========================
-    // 退出
-    // =========================
     function checkOut() {
-      var name = getNameInput().value.trim();
-
-      if (!name) {
-        alert("名前を入力してください");
+      if (!selectedUser) {
+        alert("先に名前を選択してください");
         return;
       }
 
-      saveName(name);
-
-      var encodedName = encodeURIComponent(name);
+      var encodedName = encodeURIComponent(selectedUser);
       var userRef = db.ref("users/" + encodedName);
 
       userRef.once("value").then(function(snapshot) {
@@ -406,8 +507,8 @@
         var historyRef = db.ref("history/" + encodedName + "/" + now);
         var totalRef = db.ref("dailyTotals/" + encodedName + "/" + day);
 
-        historyRef.set({
-          name: name,
+        return historyRef.set({
+          name: selectedUser,
           checkInTime: checkInTime,
           checkOutTime: now,
           durationMs: durationMs
@@ -419,32 +520,28 @@
           return userRef.remove();
         }).then(function() {
           loadTodayMyTotal();
-          alert(name + " さんを退出処理しました");
-        }).catch(function(error) {
-          alert("退出に失敗しました: " + error.message);
+          alert(selectedUser + " さんを退出処理しました");
         });
+      }).catch(function(error) {
+        if (error) {
+          alert("退出に失敗しました: " + error.message);
+        }
       });
     }
 
-    // =========================
-    // 今日の自分の累計滞在時間
-    // =========================
     function loadTodayMyTotal() {
-      var name = getNameInput().value.trim() || getSavedName();
-
-      if (!name) {
+      if (!selectedUser) {
         document.getElementById("myTodayTotal").textContent = "0分";
         return;
       }
 
-      var encodedName = encodeURIComponent(name);
+      var encodedName = encodeURIComponent(selectedUser);
       var day = todayKey();
       var totalRef = db.ref("dailyTotals/" + encodedName + "/" + day);
 
       totalRef.once("value").then(function(snapshot) {
         var totalMs = snapshot.val() || 0;
 
-        // もし現在入室中なら、その経過分も足して表示
         return db.ref("users/" + encodedName).once("value").then(function(userSnap) {
           if (userSnap.exists()) {
             var user = userSnap.val();
@@ -459,9 +556,6 @@
       });
     }
 
-    // =========================
-    // 在室者購読
-    // =========================
     function subscribeUsers() {
       db.ref("users").on("value", function(snapshot) {
         currentUsersCache = {};
@@ -474,9 +568,6 @@
       });
     }
 
-    // =========================
-    // 描画
-    // =========================
     function renderUsersFromCache() {
       var memberList = document.getElementById("memberList");
       var countEl = document.getElementById("currentCount");
@@ -517,17 +608,12 @@
       });
     }
 
-    // =========================
-    // HTMLエスケープ
-    // =========================
-    function escapeHtml(text) {
-      return String(text)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-    }
+    window.onload = function() {
+      renderSavedMembers();
+      subscribeUsers();
+      loadTodayMyTotal();
+      setInterval(renderUsersFromCache, 1000);
+    };
   </script>
 </body>
 </html>
