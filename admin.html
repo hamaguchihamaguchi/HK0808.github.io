@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>研究室勤怠システム - 管理者ページ</title>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      margin: 0;
+      background: #f5f7fb;
+      color: #1f2937;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+      margin-bottom: 16px;
+    }
+    h1 { font-size: 1.8rem; margin-bottom: 20px; }
+    h2 { font-size: 1.3rem; margin: 0 0 16px; }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .summary-box {
+      background: #eff6ff;
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .summary-title {
+      font-size: 0.85rem;
+      color: #4b5563;
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+    .summary-value {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #111827;
+      line-height: 1.4;
+    }
+    .rank-list, .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      background: #f9fafb;
+      padding: 12px 14px;
+      border-radius: 12px;
+      flex-wrap: wrap;
+    }
+    .name {
+      font-weight: 800;
+    }
+    .value {
+      color: #1d4ed8;
+      font-weight: 800;
+    }
+    .sub {
+      color: #6b7280;
+      line-height: 1.7;
+    }
+    .history-item {
+      background: #f9fafb;
+      border-radius: 12px;
+      padding: 12px 14px;
+      line-height: 1.7;
+    }
+    .filter-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    input, select {
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      font-size: 1rem;
+    }
+    a {
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    @media (max-width: 900px) {
+      .summary {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    @media (max-width: 560px) {
+      .summary {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>管理者ページ</h1>
+
+    <div class="card">
+      <div class="summary">
+        <div class="summary-box">
+          <div class="summary-title">現在在室人数</div>
+          <div class="summary-value" id="currentCount">0人</div>
+        </div>
+        <div class="summary-box">
+          <div class="summary-title">今日の打刻件数</div>
+          <div class="summary-value" id="todayHistoryCount">0件</div>
+        </div>
+        <div class="summary-box">
+          <div class="summary-title">今週集計対象人数</div>
+          <div class="summary-value" id="weeklyUserCount">0人</div>
+        </div>
+        <div class="summary-box">
+          <div class="summary-title">表示対象月</div>
+          <div class="summary-value" id="currentMonthLabel">-</div>
+        </div>
+      </div>
+      <div class="sub"><a href="./viewer.html">閲覧ページへ</a> / <a href="./index.html">名前設定ページへ</a></div>
+    </div>
+
+    <div class="card">
+      <h2>今日の滞在時間ランキング</h2>
+      <div id="todayRanking" class="rank-list"></div>
+    </div>
+
+    <div class="card">
+      <h2>今週の滞在時間ランキング</h2>
+      <div id="weeklyRanking" class="rank-list"></div>
+    </div>
+
+    <div class="card">
+      <h2>個人の月間合計時間</h2>
+      <div class="filter-row">
+        <select id="monthSelect"></select>
+      </div>
+      <div id="monthlyTotals" class="rank-list"></div>
+    </div>
+
+    <div class="card">
+      <h2>打刻履歴の確認</h2>
+      <div class="filter-row">
+        <input type="text" id="historyNameFilter" placeholder="名前で絞り込み">
+      </div>
+      <div id="historyList" class="history-list"></div>
+    </div>
+  </div>
+
+  <script>
+    var firebaseConfig = {
+      apiKey: "AIzaSyDykqZFJcIurcovYkQvbWqr5vchYGOHgsU",
+      authDomain: "system-2e861.firebaseapp.com",
+      databaseURL: "https://system-2e861-default-rtdb.firebaseio.com",
+      projectId: "system-2e861"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.database();
+
+    let usersCache = {};
+    let dailyTotalsCache = {};
+    let monthlyTotalsCache = {};
+    let historyCache = [];
+
+    function todayKey() {
+      const now = new Date();
+      return now.getFullYear() + "-" +
+        String(now.getMonth() + 1).padStart(2, "0") + "-" +
+        String(now.getDate()).padStart(2, "0");
+    }
+
+    function weekKeys() {
+      const now = new Date();
+      const day = now.getDay();
+      const diffToMonday = (day === 0 ? 6 : day - 1);
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - diffToMonday);
+
+      const keys = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        keys.push(
+          d.getFullYear() + "-" +
+          String(d.getMonth() + 1).padStart(2, "0") + "-" +
+          String(d.getDate()).padStart(2, "0")
+        );
+      }
+      return keys;
+    }
+
+    function currentMonthKey() {
+      const now = new Date();
+      return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    }
+
+    function formatDateTime(ms) {
+      const date = new Date(ms);
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      const hh = String(date.getHours()).padStart(2, "0");
+      const mm = String(date.getMinutes()).padStart(2, "0");
+      const ss = String(date.getSeconds()).padStart(2, "0");
+      return y + "/" + m + "/" + d + " " + hh + ":" + mm + ":" + ss;
+    }
+
+    function formatDuration(ms) {
+      const totalSec = Math.max(0, Math.floor(ms / 1000));
+      const hours = Math.floor(totalSec / 3600);
+      const minutes = Math.floor((totalSec % 3600) / 60);
+      if (hours > 0) return hours + "時間" + minutes + "分";
+      return minutes + "分";
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function renderRankList(containerId, arr) {
+      const el = document.getElementById(containerId);
+      el.innerHTML = "";
+
+      if (arr.length === 0) {
+        el.innerHTML = '<div class="row"><div class="sub">データがありません。</div></div>';
+        return;
+      }
+
+      arr.forEach(function(item, idx) {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML = `
+          <div class="name">${idx + 1}位 ${escapeHtml(item.name)}</div>
+          <div class="value">${formatDuration(item.totalMs)}</div>
+        `;
+        el.appendChild(row);
+      });
+    }
+
+    function renderTodayRanking() {
+      const today = todayKey();
+      const map = {};
+
+      Object.keys(dailyTotalsCache).forEach(function(encodedName) {
+        const name = decodeURIComponent(encodedName);
+        const totals = dailyTotalsCache[encodedName] || {};
+        map[name] = totals[today] || 0;
+      });
+
+      Object.keys(usersCache).forEach(function(encodedName) {
+        const user = usersCache[encodedName];
+        const name = user.name;
+        if (!map[name]) map[name] = 0;
+        map[name] += Date.now() - (user.checkInTime || Date.now());
+      });
+
+      const arr = Object.keys(map)
+        .map(name => ({ name, totalMs: map[name] }))
+        .filter(x => x.totalMs > 0)
+        .sort((a,b) => b.totalMs - a.totalMs);
+
+      renderRankList("todayRanking", arr);
+    }
+
+    function renderWeeklyRanking() {
+      const keys = weekKeys();
+      const map = {};
+
+      Object.keys(dailyTotalsCache).forEach(function(encodedName) {
+        const name = decodeURIComponent(encodedName);
+        const totals = dailyTotalsCache[encodedName] || {};
+        let sum = 0;
+        keys.forEach(k => sum += (totals[k] || 0));
+        map[name] = sum;
+      });
+
+      Object.keys(usersCache).forEach(function(encodedName) {
+        const user = usersCache[encodedName];
+        const name = user.name;
+        const today = todayKey();
+        const inThisWeek = keys.includes(today);
+        if (inThisWeek) {
+          if (!map[name]) map[name] = 0;
+          map[name] += Date.now() - (user.checkInTime || Date.now());
+        }
+      });
+
+      const arr = Object.keys(map)
+        .map(name => ({ name, totalMs: map[name] }))
+        .filter(x => x.totalMs > 0)
+        .sort((a,b) => b.totalMs - a.totalMs);
+
+      document.getElementById("weeklyUserCount").textContent = arr.length + "人";
+      renderRankList("weeklyRanking", arr);
+    }
+
+    function buildMonthOptions() {
+      const select = document.getElementById("monthSelect");
+      const monthSet = new Set();
+      monthSet.add(currentMonthKey());
+
+      Object.keys(monthlyTotalsCache).forEach(function(encodedName) {
+        const months = monthlyTotalsCache[encodedName] || {};
+        Object.keys(months).forEach(m => monthSet.add(m));
+      });
+
+      const arr = Array.from(monthSet).sort().reverse();
+      select.innerHTML = "";
+      arr.forEach(function(m) {
+        const op = document.createElement("option");
+        op.value = m;
+        op.textContent = m;
+        select.appendChild(op);
+      });
+
+      if (!select.value) select.value = currentMonthKey();
+      document.getElementById("currentMonthLabel").textContent = select.value;
+    }
+
+    function renderMonthlyTotals() {
+      const month = document.getElementById("monthSelect").value || currentMonthKey();
+      document.getElementById("currentMonthLabel").textContent = month;
+
+      const map = {};
+      Object.keys(monthlyTotalsCache).forEach(function(encodedName) {
+        const name = decodeURIComponent(encodedName);
+        const months = monthlyTotalsCache[encodedName] || {};
+        map[name] = months[month] || 0;
+      });
+
+      Object.keys(usersCache).forEach(function(encodedName) {
+        const user = usersCache[encodedName];
+        const userMonth = currentMonthKey();
+        if (userMonth === month) {
+          const name = user.name;
+          if (!map[name]) map[name] = 0;
+          map[name] += Date.now() - (user.checkInTime || Date.now());
+        }
+      });
+
+      const arr = Object.keys(map)
+        .map(name => ({ name, totalMs: map[name] }))
+        .filter(x => x.totalMs > 0)
+        .sort((a,b) => b.totalMs - a.totalMs);
+
+      renderRankList("monthlyTotals", arr);
+    }
+
+    function renderHistory() {
+      const filter = (document.getElementById("historyNameFilter").value || "").trim().toLowerCase();
+      const list = document.getElementById("historyList");
+      list.innerHTML = "";
+
+      let arr = historyCache.slice().sort((a,b) => (b.checkOutTime || 0) - (a.checkOutTime || 0));
+
+      if (filter) {
+        arr = arr.filter(x => (x.name || "").toLowerCase().includes(filter));
+      }
+
+      document.getElementById("todayHistoryCount").textContent =
+        arr.filter(x => x.dayKey === todayKey()).length + "件";
+
+      if (arr.length === 0) {
+        list.innerHTML = '<div class="history-item">履歴がありません。</div>';
+        return;
+      }
+
+      arr.forEach(function(item) {
+        const div = document.createElement("div");
+        div.className = "history-item";
+        div.innerHTML = `
+          <strong>${escapeHtml(item.name || "名前なし")}</strong><br>
+          入室: ${formatDateTime(item.checkInTime || 0)}<br>
+          退出: ${formatDateTime(item.checkOutTime || 0)}<br>
+          滞在時間: ${formatDuration(item.durationMs || 0)}
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    function refreshAll() {
+      document.getElementById("currentCount").textContent = Object.keys(usersCache).length + "人";
+      renderTodayRanking();
+      renderWeeklyRanking();
+      buildMonthOptions();
+      renderMonthlyTotals();
+      renderHistory();
+    }
+
+    window.onload = function() {
+      db.ref("users").on("value", function(snapshot) {
+        usersCache = {};
+        snapshot.forEach(function(child) {
+          usersCache[child.key] = child.val();
+        });
+        refreshAll();
+      });
+
+      db.ref("dailyTotals").on("value", function(snapshot) {
+        dailyTotalsCache = snapshot.val() || {};
+        refreshAll();
+      });
+
+      db.ref("monthlyTotals").on("value", function(snapshot) {
+        monthlyTotalsCache = snapshot.val() || {};
+        refreshAll();
+      });
+
+      db.ref("history").on("value", function(snapshot) {
+        historyCache = [];
+        snapshot.forEach(function(userNode) {
+          const sessions = userNode.val() || {};
+          Object.keys(sessions).forEach(function(ts) {
+            historyCache.push(sessions[ts]);
+          });
+        });
+        refreshAll();
+      });
+
+      document.getElementById("monthSelect").addEventListener("change", renderMonthlyTotals);
+      document.getElementById("historyNameFilter").addEventListener("input", renderHistory);
+      setInterval(refreshAll, 1000);
+    };
+  </script>
+</body>
+</html>
