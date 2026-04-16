@@ -40,18 +40,10 @@
       color: #6b7280;
       line-height: 1.7;
     }
-    .success {
-      color: #166534;
-      font-weight: 800;
-    }
-    .danger {
-      color: #b91c1c;
-      font-weight: 800;
-    }
-    .neutral {
-      color: #1d4ed8;
-      font-weight: 800;
-    }
+    .success { color: #166534; font-weight: 800; }
+    .danger { color: #b91c1c; font-weight: 800; }
+    .neutral { color: #1d4ed8; font-weight: 800; }
+    .warn { color: #92400e; font-weight: 800; }
     a {
       color: #2563eb;
       text-decoration: none;
@@ -69,10 +61,8 @@
     </div>
 
     <div class="card">
-      <div class="sub">
-        名前が未設定の場合は、先に初期設定ページを開いてください。
-      </div>
-      <p><a href="./index.html">初期設定ページへ</a></p>
+      <div class="sub">このページはNFC専用です。正規のURLキーがない場合は打刻できません。</div>
+      <p><a href="./index.html">名前設定ページへ</a></p>
       <p><a href="./viewer.html">閲覧ページへ</a></p>
     </div>
   </div>
@@ -89,13 +79,24 @@
     var db = firebase.database();
 
     const STORAGE_KEY = "lab_selected_user";
+    const SECRET_KEY = "lab2026_attendance_x9k3";
+    const LOCK_SECONDS = 10;
+
+    function getQueryParam(name) {
+      const url = new URL(window.location.href);
+      return url.searchParams.get(name);
+    }
 
     function todayKey() {
       const now = new Date();
-      const y = now.getFullYear();
-      const m = String(now.getMonth() + 1).padStart(2, "0");
-      const d = String(now.getDate()).padStart(2, "0");
-      return y + "-" + m + "-" + d;
+      return now.getFullYear() + "-" +
+        String(now.getMonth() + 1).padStart(2, "0") + "-" +
+        String(now.getDate()).padStart(2, "0");
+    }
+
+    function monthKey(dateMs) {
+      const d = new Date(dateMs);
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
     }
 
     function setMessage(text, detail, className) {
@@ -109,43 +110,72 @@
     async function autoToggleAttendance() {
       const name = localStorage.getItem(STORAGE_KEY) || "";
       if (!name) {
-        setMessage("名前が未設定です", "この端末ではまだ名前が保存されていません。初期設定ページで名前を保存してください。", "danger");
+        setMessage("名前が未設定です", "この端末ではまだ名前が保存されていません。名前設定ページで名前を保存してください。", "danger");
         return;
       }
 
       const encodedName = encodeURIComponent(name);
+      const metaRef = db.ref("meta/" + encodedName);
+      const metaSnap = await metaRef.once("value");
+      const meta = metaSnap.val() || {};
+      const now = Date.now();
+
+      if (meta.lastActionTime && (now - meta.lastActionTime) < LOCK_SECONDS * 1000) {
+        const remain = Math.ceil((LOCK_SECONDS * 1000 - (now - meta.lastActionTime)) / 1000);
+        setMessage("連続打刻できません", "直前打刻から" + LOCK_SECONDS + "秒以内です。あと " + remain + " 秒待ってください。", "warn");
+        return;
+      }
+
       const userRef = db.ref("users/" + encodedName);
       const snapshot = await userRef.once("value");
 
       if (!snapshot.exists()) {
-        const now = Date.now();
         await userRef.set({
           name: name,
           checkInTime: now,
           status: "in"
         });
+
+        await metaRef.update({
+          lastAction: "checkin",
+          lastActionTime: now
+        });
+
         setMessage("入室しました", name + " さんを入室登録しました。", "success");
         return;
       }
 
       const data = snapshot.val();
-      const now = Date.now();
       const checkInTime = data.checkInTime || now;
       const durationMs = now - checkInTime;
       const day = todayKey();
+      const month = monthKey(now);
 
       const historyRef = db.ref("history/" + encodedName + "/" + now);
-      const totalRef = db.ref("dailyTotals/" + encodedName + "/" + day);
+      const dailyTotalRef = db.ref("dailyTotals/" + encodedName + "/" + day);
+      const weeklyDayRef = db.ref("dailyTotals/" + encodedName + "/" + day);
+      const monthlyTotalRef = db.ref("monthlyTotals/" + encodedName + "/" + month);
 
       await historyRef.set({
         name: name,
         checkInTime: checkInTime,
         checkOutTime: now,
-        durationMs: durationMs
+        durationMs: durationMs,
+        dayKey: day,
+        monthKey: month
       });
 
-      await totalRef.transaction(function(current) {
+      await dailyTotalRef.transaction(function(current) {
         return (current || 0) + durationMs;
+      });
+
+      await monthlyTotalRef.transaction(function(current) {
+        return (current || 0) + durationMs;
+      });
+
+      await metaRef.update({
+        lastAction: "checkout",
+        lastActionTime: now
       });
 
       await userRef.remove();
@@ -153,6 +183,13 @@
     }
 
     window.onload = function() {
+      const key = getQueryParam("key");
+
+      if (key !== SECRET_KEY) {
+        setMessage("このページからは打刻できません", "正しいNFCタグ経由のURLではありません。", "danger");
+        return;
+      }
+
       autoToggleAttendance().catch(function(error) {
         setMessage("エラーが発生しました", error.message, "danger");
       });
