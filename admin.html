@@ -165,7 +165,7 @@
     </div>
 
     <div class="card">
-      <h2>今日の打刻履歴</h2>
+      <h2>打刻履歴の確認</h2>
       <div class="filter-row">
         <input type="text" id="historyNameFilter" placeholder="名前で絞り込み">
       </div>
@@ -185,10 +185,7 @@
     var db = firebase.database();
 
     let usersCache = {};
-    let dailyTotalsCache = {};
-    let monthlyTotalsCache = {};
-    let weeklyTotalsCache = {};
-    let todayHistoryCache = [];
+    let sessionsCache = [];
 
     function todayKey() {
       const now = new Date();
@@ -202,27 +199,15 @@
       return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
     }
 
-    function currentWeekKey() {
-      const d = new Date();
-      const day = d.getDay();
-      const diffToMonday = (day === 0 ? 6 : day - 1);
-      d.setDate(d.getDate() - diffToMonday);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return y + "-W-" + m + "-" + dd;
-    }
-
     function startOfToday() {
       const d = new Date();
       d.setHours(0, 0, 0, 0);
       return d.getTime();
     }
 
-    function startOfMonth() {
+    function startOfTomorrow() {
       const d = new Date();
-      d.setDate(1);
-      d.setHours(0, 0, 0, 0);
+      d.setHours(24, 0, 0, 0);
       return d.getTime();
     }
 
@@ -233,6 +218,26 @@
       d.setDate(d.getDate() - diffToMonday);
       d.setHours(0, 0, 0, 0);
       return d.getTime();
+    }
+
+    function startOfNextWeek() {
+      const d = new Date(startOfCurrentWeek());
+      d.setDate(d.getDate() + 7);
+      return d.getTime();
+    }
+
+    function startOfMonthByKey(monthKey) {
+      const parts = monthKey.split("-");
+      const y = Number(parts[0]);
+      const m = Number(parts[1]) - 1;
+      return new Date(y, m, 1, 0, 0, 0, 0).getTime();
+    }
+
+    function startOfNextMonthByKey(monthKey) {
+      const parts = monthKey.split("-");
+      const y = Number(parts[0]);
+      const m = Number(parts[1]) - 1;
+      return new Date(y, m + 1, 1, 0, 0, 0, 0).getTime();
     }
 
     function formatDateTime(ms) {
@@ -263,85 +268,10 @@
         .replace(/'/g, "&#039;");
     }
 
-    function renderRankList(containerId, arr) {
-      const el = document.getElementById(containerId);
-      el.innerHTML = "";
-
-      if (arr.length === 0) {
-        el.innerHTML = '<div class="row"><div class="sub">データがありません。</div></div>';
-        return;
-      }
-
-      arr.forEach(function(item, idx) {
-        const row = document.createElement("div");
-        row.className = "row";
-        row.innerHTML = `
-          <div class="name">${idx + 1}位 ${escapeHtml(item.name)}</div>
-          <div class="value">${formatDuration(item.totalMs)}</div>
-        `;
-        el.appendChild(row);
-      });
-    }
-
-    function renderTodayRanking() {
-      const today = todayKey();
-      const todayStart = startOfToday();
-      const now = Date.now();
-      const map = {};
-
-      Object.keys(dailyTotalsCache).forEach(function(encodedName) {
-        const name = decodeURIComponent(encodedName);
-        const totals = dailyTotalsCache[encodedName] || {};
-        map[name] = totals[today] || 0;
-      });
-
-      Object.keys(usersCache).forEach(function(encodedName) {
-        const user = usersCache[encodedName];
-        const name = user.name;
-        if (!map[name]) map[name] = 0;
-
-        const checkIn = user.checkInTime || now;
-        const effectiveStart = Math.max(checkIn, todayStart);
-        map[name] += Math.max(0, now - effectiveStart);
-      });
-
-      const arr = Object.keys(map)
-        .map(name => ({ name, totalMs: map[name] }))
-        .filter(x => x.totalMs > 0)
-        .sort((a, b) => b.totalMs - a.totalMs);
-
-      renderRankList("todayRanking", arr);
-    }
-
-    function renderWeeklyRanking() {
-      const weekKey = currentWeekKey();
-      const weekStart = startOfCurrentWeek();
-      const now = Date.now();
-      const map = {};
-
-      const weekNode = weeklyTotalsCache[weekKey] || {};
-      Object.keys(weekNode).forEach(function(encodedName) {
-        const name = decodeURIComponent(encodedName);
-        map[name] = weekNode[encodedName] || 0;
-      });
-
-      Object.keys(usersCache).forEach(function(encodedName) {
-        const user = usersCache[encodedName];
-        const name = user.name;
-        if (!map[name]) map[name] = 0;
-
-        const checkIn = user.checkInTime || now;
-        const effectiveStart = Math.max(checkIn, weekStart);
-        map[name] += Math.max(0, now - effectiveStart);
-      });
-
-      const arr = Object.keys(map)
-        .map(name => ({ name, totalMs: map[name] }))
-        .filter(x => x.totalMs > 0)
-        .sort((a, b) => b.totalMs - a.totalMs);
-
-      document.getElementById("weeklyUserCount").textContent = arr.length + "人";
-      renderRankList("weeklyRanking", arr);
+    function overlapDuration(startA, endA, startB, endB) {
+      const start = Math.max(startA, startB);
+      const end = Math.min(endA, endB);
+      return Math.max(0, end - start);
     }
 
     function buildMonthOptions() {
@@ -351,9 +281,17 @@
       const monthSet = new Set();
       monthSet.add(currentMonthKey());
 
-      Object.keys(monthlyTotalsCache).forEach(function(encodedName) {
-        const months = monthlyTotalsCache[encodedName] || {};
-        Object.keys(months).forEach(m => monthSet.add(m));
+      sessionsCache.forEach(function(s) {
+        const start = new Date(s.checkInTime);
+        const end = new Date(s.checkOutTime);
+        const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+        const limit = new Date(end.getFullYear(), end.getMonth(), 1);
+
+        while (cursor <= limit) {
+          const key = cursor.getFullYear() + "-" + String(cursor.getMonth() + 1).padStart(2, "0");
+          monthSet.add(key);
+          cursor.setMonth(cursor.getMonth() + 1);
+        }
       });
 
       const arr = Array.from(monthSet).sort().reverse();
@@ -375,38 +313,79 @@
       document.getElementById("currentMonthLabel").textContent = select.value;
     }
 
+    function renderRankList(containerId, arr) {
+      const el = document.getElementById(containerId);
+      el.innerHTML = "";
+
+      if (arr.length === 0) {
+        el.innerHTML = '<div class="row"><div class="sub">データがありません。</div></div>';
+        return;
+      }
+
+      arr.forEach(function(item, idx) {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML = `
+          <div class="name">${idx + 1}位 ${escapeHtml(item.name)}</div>
+          <div class="value">${formatDuration(item.totalMs)}</div>
+        `;
+        el.appendChild(row);
+      });
+    }
+
+    function buildRanking(rangeStart, rangeEnd) {
+      const map = {};
+      const now = Date.now();
+
+      // 退出済みセッション
+      sessionsCache.forEach(function(s) {
+        const name = s.name || "名前なし";
+        if (!map[name]) map[name] = 0;
+        map[name] += overlapDuration(
+          s.checkInTime || 0,
+          s.checkOutTime || 0,
+          rangeStart,
+          rangeEnd
+        );
+      });
+
+      // 在室中セッション
+      Object.keys(usersCache).forEach(function(encodedName) {
+        const user = usersCache[encodedName];
+        const name = user.name || decodeURIComponent(encodedName);
+        if (!map[name]) map[name] = 0;
+        map[name] += overlapDuration(
+          user.checkInTime || now,
+          now,
+          rangeStart,
+          rangeEnd
+        );
+      });
+
+      return Object.keys(map)
+        .map(name => ({ name, totalMs: map[name] }))
+        .filter(x => x.totalMs > 0)
+        .sort((a, b) => b.totalMs - a.totalMs);
+    }
+
+    function renderTodayRanking() {
+      const arr = buildRanking(startOfToday(), startOfTomorrow());
+      renderRankList("todayRanking", arr);
+    }
+
+    function renderWeeklyRanking() {
+      const arr = buildRanking(startOfCurrentWeek(), startOfNextWeek());
+      document.getElementById("weeklyUserCount").textContent = arr.length + "人";
+      renderRankList("weeklyRanking", arr);
+    }
+
     function renderMonthlyTotals() {
       const month = document.getElementById("monthSelect").value || currentMonthKey();
       document.getElementById("currentMonthLabel").textContent = month;
 
-      const monthStart = startOfMonth();
-      const now = Date.now();
-      const map = {};
-
-      Object.keys(monthlyTotalsCache).forEach(function(encodedName) {
-        const name = decodeURIComponent(encodedName);
-        const months = monthlyTotalsCache[encodedName] || {};
-        map[name] = months[month] || 0;
-      });
-
-      Object.keys(usersCache).forEach(function(encodedName) {
-        const user = usersCache[encodedName];
-        const userMonth = currentMonthKey();
-
-        if (userMonth === month) {
-          const name = user.name;
-          if (!map[name]) map[name] = 0;
-
-          const checkIn = user.checkInTime || now;
-          const effectiveStart = Math.max(checkIn, monthStart);
-          map[name] += Math.max(0, now - effectiveStart);
-        }
-      });
-
-      const arr = Object.keys(map)
-        .map(name => ({ name, totalMs: map[name] }))
-        .filter(x => x.totalMs > 0)
-        .sort((a, b) => b.totalMs - a.totalMs);
+      const rangeStart = startOfMonthByKey(month);
+      const rangeEnd = startOfNextMonthByKey(month);
+      const arr = buildRanking(rangeStart, rangeEnd);
 
       renderRankList("monthlyTotals", arr);
     }
@@ -416,8 +395,16 @@
       const list = document.getElementById("historyList");
       list.innerHTML = "";
 
-      const allArr = todayHistoryCache.slice().sort((a, b) => (b.checkOutTime || 0) - (a.checkOutTime || 0));
-      document.getElementById("todayHistoryCount").textContent = allArr.length + "件";
+      const allArr = sessionsCache.slice().sort((a, b) => (b.checkOutTime || 0) - (a.checkOutTime || 0));
+
+      document.getElementById("todayHistoryCount").textContent =
+        allArr.filter(x => {
+          const d = new Date(x.checkOutTime || 0);
+          const key = d.getFullYear() + "-" +
+            String(d.getMonth() + 1).padStart(2, "0") + "-" +
+            String(d.getDate()).padStart(2, "0");
+          return key === todayKey();
+        }).length + "件";
 
       let arr = allArr;
       if (filter) {
@@ -436,38 +423,19 @@
           <strong>${escapeHtml(item.name || "名前なし")}</strong><br>
           入室: ${formatDateTime(item.checkInTime || 0)}<br>
           退出: ${formatDateTime(item.checkOutTime || 0)}<br>
-          滞在時間: ${formatDuration(item.durationMs || 0)}
+          滞在時間: ${formatDuration((item.checkOutTime || 0) - (item.checkInTime || 0))}
         `;
         list.appendChild(div);
       });
     }
 
-    function renderStatic() {
+    function renderAll() {
       document.getElementById("currentCount").textContent = Object.keys(usersCache).length + "人";
       buildMonthOptions();
-      renderMonthlyTotals();
-      renderHistory();
-    }
-
-    function renderDynamic() {
       renderTodayRanking();
       renderWeeklyRanking();
       renderMonthlyTotals();
-    }
-
-    function loadTodayHistoryByDate() {
-      const today = todayKey();
-      db.ref("historyByDate/" + today).on("value", function(snapshot) {
-        const temp = [];
-        snapshot.forEach(function(userNode) {
-          const sessions = userNode.val() || {};
-          Object.keys(sessions).forEach(function(ts) {
-            temp.push(sessions[ts]);
-          });
-        });
-        todayHistoryCache = temp;
-        renderHistory();
-      });
+      renderHistory();
     }
 
     window.onload = function() {
@@ -476,33 +444,34 @@
         snapshot.forEach(function(child) {
           usersCache[child.key] = child.val();
         });
-        renderStatic();
-        renderDynamic();
+        renderAll();
       });
 
-      db.ref("dailyTotals").on("value", function(snapshot) {
-        dailyTotalsCache = snapshot.val() || {};
-        renderDynamic();
+      db.ref("history").on("value", function(snapshot) {
+        sessionsCache = [];
+        snapshot.forEach(function(userNode) {
+          const sessionMap = userNode.val() || {};
+          Object.keys(sessionMap).forEach(function(sessionId) {
+            const session = sessionMap[sessionId];
+            sessionsCache.push({
+              name: session.name,
+              checkInTime: session.checkInTime,
+              checkOutTime: session.checkOutTime
+            });
+          });
+        });
+        renderAll();
       });
-
-      db.ref("monthlyTotals").on("value", function(snapshot) {
-        monthlyTotalsCache = snapshot.val() || {};
-        renderStatic();
-        renderDynamic();
-      });
-
-      db.ref("weeklyTotals").on("value", function(snapshot) {
-        weeklyTotalsCache = snapshot.val() || {};
-        renderDynamic();
-      });
-
-      loadTodayHistoryByDate();
 
       document.getElementById("monthSelect").addEventListener("change", renderMonthlyTotals);
       document.getElementById("historyNameFilter").addEventListener("input", renderHistory);
 
-      // 毎秒ではなく、在室中の経過時間表示に必要な集計だけ1分ごとに更新
-      setInterval(renderDynamic, 60000);
+      // 在室中の経過時間反映用に1分ごとだけ再描画
+      setInterval(function() {
+        renderTodayRanking();
+        renderWeeklyRanking();
+        renderMonthlyTotals();
+      }, 60000);
     };
   </script>
 </body>
