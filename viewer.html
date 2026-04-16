@@ -62,7 +62,10 @@
       border-radius: 14px;
       padding: 14px 16px;
       box-shadow: 0 4px 14px rgba(0,0,0,0.05);
-      border-left: 6px solid #16a34a;
+      border-left: 8px solid #16a34a;
+    }
+    .member-card.out {
+      border-left-color: #9ca3af;
     }
     .member-top {
       display: flex;
@@ -76,13 +79,19 @@
       font-weight: 800;
     }
     .badge {
-      background: #dcfce7;
-      color: #166534;
       padding: 6px 10px;
       border-radius: 999px;
       font-size: 0.8rem;
       font-weight: 700;
       white-space: nowrap;
+    }
+    .badge.in {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .badge.out {
+      background: #f3f4f6;
+      color: #4b5563;
     }
     .member-meta {
       color: #4b5563;
@@ -131,6 +140,7 @@
       </div>
       <div class="sub">このページは閲覧専用です。開いても入退室は発生しません。</div>
       <div class="sub"><a href="./index.html">名前設定ページへ</a></div>
+      <div class="sub"><a href="./admin.html">管理者ページへ</a></div>
     </div>
 
     <div id="memberList" class="member-list"></div>
@@ -147,6 +157,14 @@
     firebase.initializeApp(firebaseConfig);
     var db = firebase.database();
     var currentUsersCache = {};
+    var historyTodayCache = {};
+
+    function todayKey() {
+      const now = new Date();
+      return now.getFullYear() + "-" +
+        String(now.getMonth() + 1).padStart(2, "0") + "-" +
+        String(now.getDate()).padStart(2, "0");
+    }
 
     function formatDateTime(ms) {
       const date = new Date(ms);
@@ -180,33 +198,90 @@
       const countEl = document.getElementById("currentCount");
       memberList.innerHTML = "";
 
-      const users = Object.values(currentUsersCache).sort(function(a, b) {
-        return (a.checkInTime || 0) - (b.checkInTime || 0);
+      const inUsers = Object.values(currentUsersCache).map(u => ({...u, isIn:true}));
+
+      const outUsers = [];
+      Object.keys(historyTodayCache).forEach(function(name) {
+        const encoded = encodeURIComponent(name);
+        if (!currentUsersCache[encoded]) {
+          const sessions = Object.values(historyTodayCache[name] || {});
+          if (sessions.length > 0) {
+            sessions.sort((a,b) => (b.checkOutTime||0) - (a.checkOutTime||0));
+            const last = sessions[0];
+            outUsers.push({
+              name: name,
+              checkOutTime: last.checkOutTime,
+              durationMs: last.durationMs,
+              isIn: false
+            });
+          }
+        }
       });
 
-      countEl.textContent = users.length + "人";
+      const users = inUsers.concat(outUsers);
+      countEl.textContent = inUsers.length + "人";
       document.getElementById("lastUpdated").textContent = formatDateTime(Date.now());
 
       if (users.length === 0) {
-        memberList.innerHTML = '<div class="empty">現在、研究室にいる人はいません。</div>';
+        memberList.innerHTML = '<div class="empty">本日の表示対象がありません。</div>';
         return;
       }
 
+      users.sort(function(a, b) {
+        const ta = a.isIn ? (a.checkInTime || 0) : (a.checkOutTime || 0);
+        const tb = b.isIn ? (b.checkInTime || 0) : (b.checkOutTime || 0);
+        return tb - ta;
+      });
+
       users.forEach(function(user) {
-        const elapsedMs = Date.now() - (user.checkInTime || Date.now());
         const card = document.createElement("div");
-        card.className = "member-card";
+        card.className = "member-card" + (user.isIn ? "" : " out");
+
+        const badgeClass = user.isIn ? "in" : "out";
+        const badgeText = user.isIn ? "在室中" : "本日退出済み";
+
+        let meta = "";
+        if (user.isIn) {
+          const elapsedMs = Date.now() - (user.checkInTime || Date.now());
+          meta = `
+            入室時刻: ${formatDateTime(user.checkInTime || Date.now())}<br>
+            滞在時間: ${formatDuration(elapsedMs)}
+          `;
+        } else {
+          meta = `
+            最終退出時刻: ${formatDateTime(user.checkOutTime || Date.now())}<br>
+            最終滞在時間: ${formatDuration(user.durationMs || 0)}
+          `;
+        }
+
         card.innerHTML = `
           <div class="member-top">
             <div class="member-name">${escapeHtml(user.name || "名前なし")}</div>
-            <div class="badge">在室中</div>
+            <div class="badge ${badgeClass}">${badgeText}</div>
           </div>
-          <div class="member-meta">
-            入室時刻: ${formatDateTime(user.checkInTime || Date.now())}<br>
-            滞在時間: ${formatDuration(elapsedMs)}
-          </div>
+          <div class="member-meta">${meta}</div>
         `;
         memberList.appendChild(card);
+      });
+    }
+
+    function loadTodayHistory() {
+      db.ref("history").once("value", function(snapshot) {
+        historyTodayCache = {};
+        const today = todayKey();
+        snapshot.forEach(function(userNode) {
+          const encodedName = userNode.key;
+          const sessionsObj = userNode.val() || {};
+          Object.keys(sessionsObj).forEach(function(ts) {
+            const session = sessionsObj[ts];
+            if (session.dayKey === today) {
+              const decodedName = decodeURIComponent(encodedName);
+              if (!historyTodayCache[decodedName]) historyTodayCache[decodedName] = {};
+              historyTodayCache[decodedName][ts] = session;
+            }
+          });
+        });
+        renderUsers();
       });
     }
 
@@ -219,7 +294,9 @@
         renderUsers();
       });
 
+      loadTodayHistory();
       setInterval(renderUsers, 1000);
+      setInterval(loadTodayHistory, 30000);
     };
   </script>
 </body>
